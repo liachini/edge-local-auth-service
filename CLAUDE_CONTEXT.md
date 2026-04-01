@@ -35,7 +35,7 @@ Questo file contiene il contesto completo del progetto per permettere a Claude (
    - Funziona perfettamente
 
 5. **Controllers implementati:**
-   - `TokenController`: gestisce `/connect/token`
+   - `TokenController`: gestisce `/connect/token` (password, client_credentials, authorization_code, refresh_token)
    - `AuthorizationController`: gestisce `/connect/authorize` e consent screen
    - `AccountController`: gestisce `/account/login` e `/account/logout` (cookie auth)
 
@@ -494,8 +494,8 @@ private async Task<IActionResult> HandlePasswordGrant(OpenIddictRequest request)
 ### Test Rapidi
 
 ```powershell
-# 1. Password Grant
-$body = @{ grant_type = "password"; username = "admin"; password = "admin123"; client_id = "hmi-local"; scope = "openid profile email" }
+# 1. Password Grant (aggiungere offline_access per ottenere anche il refresh token)
+$body = @{ grant_type = "password"; username = "admin"; password = "admin123"; client_id = "hmi-local"; scope = "openid profile email offline_access" }
 Invoke-RestMethod -Uri "http://localhost:5063/connect/token" -Method Post -Body $body -ContentType "application/x-www-form-urlencoded"
 
 # 2. Authorization Code (browser)
@@ -607,10 +607,10 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [x] Client Credentials
 - [x] Consent persistente
 - [x] Seed data
+- [x] Refresh token (rotation automatica, scope offline_access)
 - [x] Token signing locale
 
 ### Online Mode (Next) 🔄
-- [ ] Refresh token handler in TokenController
 - [ ] Operating Mode Detector
 - [ ] Keycloak Sync Service
 - [ ] Background Sync Worker
@@ -626,4 +626,4 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ---
 
-**Ultimo test funzionante:** 2026-04-01 - Tutti e 3 gli scenari OAuth2 completati con login page e consent persistente ✅
+**Ultimo test funzionante:** 2026-04-01 - Tutti e 3 gli scenari OAuth2 completati con login page, consent persistente e refresh token ✅

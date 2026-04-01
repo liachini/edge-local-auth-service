@@ -575,7 +575,7 @@ $body = @{
     username = "admin"
     password = "admin123"
     client_id = "hmi-local"
-    scope = "openid profile email"
+    scope = "openid profile email offline_access"
 }
 
 $response = Invoke-RestMethod `
@@ -585,9 +585,10 @@ $response = Invoke-RestMethod `
     -ContentType "application/x-www-form-urlencoded"
 
 # Output
-$response.access_token  # Token JWT
-$response.token_type    # Bearer
-$response.scope         # openid profile email
+$response.access_token   # Token JWT (scade in ~1 ora)
+$response.refresh_token  # Token per il rinnovo (scade in ~14 giorni)
+$response.token_type     # Bearer
+$response.scope          # openid profile email offline_access
 ```
 
 **Token contiene:**
@@ -672,6 +673,70 @@ $response.access_token
 - `name`: office-api Service Account
 - `client_id`: office-api
 - `scope`: openid api.read api.write
+
+---
+
+## 🔄 Refresh Token
+
+### Come funziona
+
+Il meccanismo usa due token con durate diverse:
+
+| Token | Durata default | Scopo |
+|---|---|---|
+| `access_token` | 1 ora | Chiamare le API |
+| `refresh_token` | 14 giorni | Ottenere un nuovo access token |
+
+**Flusso:**
+
+```
+1. Client richiede token con scope "offline_access"
+2. OpenIddict emette ENTRAMBI: access_token + refresh_token
+3. Client usa access_token per chiamare le API
+4. Dopo ~1 ora: access_token scade → API risponde 401
+5. Client invia refresh_token a /connect/token
+6. Handler verifica che l'utente esista ancora nel DB ed sia attivo
+7. OpenIddict emette nuovo access_token + nuovo refresh_token
+8. Il vecchio refresh_token viene invalidato (rotation automatica)
+```
+
+> **Perché `offline_access`?** È lo scope OAuth2 standard che significa "voglio poter agire per conto dell'utente anche quando non è connesso". Senza di esso OpenIddict non emette il refresh token anche se il grant type è abilitato.
+
+> **Rotation:** ogni utilizzo invalida il vecchio refresh token e ne emette uno nuovo. Se un token rubato viene usato da un attaccante, al successivo refresh legittimo del client tutta la catena viene invalidata.
+
+### Test
+
+```powershell
+# Step 1 - Ottieni access + refresh token
+$body = @{
+    grant_type = "password"
+    username   = "admin"
+    password   = "admin123"
+    client_id  = "hmi-local"
+    scope      = "openid profile email offline_access"
+}
+$r = Invoke-RestMethod `
+    -Uri "http://localhost:5063/connect/token" `
+    -Method Post -Body $body `
+    -ContentType "application/x-www-form-urlencoded"
+
+$r.access_token   # JWT valido ~1 ora
+$r.refresh_token  # Token valido ~14 giorni
+
+# Step 2 - Rinnova con il refresh token
+$body2 = @{
+    grant_type    = "refresh_token"
+    refresh_token = $r.refresh_token
+    client_id     = "hmi-local"
+}
+$r2 = Invoke-RestMethod `
+    -Uri "http://localhost:5063/connect/token" `
+    -Method Post -Body $body2 `
+    -ContentType "application/x-www-form-urlencoded"
+
+$r2.access_token   # Nuovo JWT
+$r2.refresh_token  # Nuovo refresh token (il precedente è ora invalidato)
+```
 
 ---
 
@@ -817,9 +882,10 @@ MIT License - Progetto spike per architettura offline-first OAuth2
 - ✅ Password Grant funzionante
 - ✅ Authorization Code + Login page + Consent persistente
 - ✅ Client Credentials funzionante
+- ✅ Refresh Token con rotation automatica
 - ✅ JWKS locale generata e funzionante
 - ✅ Token JWT firmati localmente
 - ✅ Database SQLite locale
 - ✅ Consent salvato e riutilizzato
 
-**PROSSIMO:** Refresh token handler + Keycloak sync (online mode)
+**PROSSIMO:** Keycloak sync (online mode)

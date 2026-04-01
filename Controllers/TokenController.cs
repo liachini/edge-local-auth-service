@@ -43,6 +43,11 @@ public class TokenController : ControllerBase
             return await HandleAuthorizationCodeGrant(request);
         }
 
+        if (request.IsRefreshTokenGrantType())
+        {
+            return await HandleRefreshTokenGrant(request);
+        }
+
         return BadRequest(new OpenIddictResponse
         {
             Error = Errors.UnsupportedGrantType,
@@ -114,12 +119,14 @@ public class TokenController : ControllerBase
 
         var principal = new ClaimsPrincipal(identity);
 
-        principal.SetScopes(new[]
+        // Usa gli scopes richiesti dal client (già validati da OpenIddict)
+        // Necessario per emettere refresh_token quando viene richiesto offline_access
+        principal.SetScopes(request.GetScopes());
+
+        foreach (var claim in principal.Claims)
         {
-            Scopes.OpenId,
-            Scopes.Email,
-            Scopes.Profile
-        });
+            claim.SetDestinations(GetDestinations(claim));
+        }
 
         Console.WriteLine($"✅ Password grant: {user.Username} authenticated");
 
@@ -145,6 +152,48 @@ public class TokenController : ControllerBase
         Console.WriteLine($"✅ Client credentials grant: {request.ClientId} authenticated");
 
         return Task.FromResult<IActionResult>(SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme));
+    }
+
+    private async Task<IActionResult> HandleRefreshTokenGrant(OpenIddictRequest request)
+    {
+        var result = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+
+        if (result?.Principal == null)
+        {
+            return Forbid(
+                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                properties: new Microsoft.AspNetCore.Authentication.AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
+                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The refresh token is invalid or has expired."
+                }));
+        }
+
+        // Verifica che l'utente esista ancora e sia attivo
+        var subject = result.Principal.GetClaim(Claims.Subject);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == subject);
+
+        if (user == null || !user.Enabled)
+        {
+            return Forbid(
+                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                properties: new Microsoft.AspNetCore.Authentication.AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
+                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user account is no longer active."
+                }));
+        }
+
+        var principal = result.Principal;
+
+        foreach (var claim in principal.Claims)
+        {
+            claim.SetDestinations(GetDestinations(claim));
+        }
+
+        Console.WriteLine($"✅ Refresh token grant: renewed for user '{user.Username}'");
+
+        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request)
@@ -177,5 +226,33 @@ public class TokenController : ControllerBase
         
         // Ritorna il principal così com'è (è già autenticato)
         return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    private static IEnumerable<string> GetDestinations(System.Security.Claims.Claim claim)
+    {
+        switch (claim.Type)
+        {
+            case Claims.Subject:
+            case Claims.Name:
+            case Claims.PreferredUsername:
+                yield return Destinations.AccessToken;
+                yield return Destinations.IdentityToken;
+                yield break;
+
+            case Claims.Email:
+            case Claims.EmailVerified:
+            case Claims.GivenName:
+            case Claims.FamilyName:
+                yield return Destinations.IdentityToken;
+                yield break;
+
+            case Claims.Role:
+                yield return Destinations.AccessToken;
+                yield break;
+
+            default:
+                yield return Destinations.AccessToken;
+                yield break;
+        }
     }
 }

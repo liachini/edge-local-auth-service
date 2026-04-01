@@ -178,6 +178,7 @@ using (var scope = app.Services.CreateScope())
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddict.Abstractions.OpenIddictConstants.Scopes.OfflineAccess,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
             }
         });
@@ -206,6 +207,7 @@ using (var scope = app.Services.CreateScope())
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddict.Abstractions.OpenIddictConstants.Scopes.OfflineAccess,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
             }
         });
@@ -234,6 +236,25 @@ using (var scope = app.Services.CreateScope())
         
         Console.WriteLine("✅ OAuth client 'office-api' registered (service account)");
     }
+    }
+
+    // Aggiorna client esistenti con il permesso OfflineAccess (se mancante)
+    var offlinePermission = OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope
+        + OpenIddict.Abstractions.OpenIddictConstants.Scopes.OfflineAccess;
+    foreach (var clientId in new[] { "hmi-local", "mes-fornitore" })
+    {
+        var client = await clientManager.FindByClientIdAsync(clientId);
+        if (client != null)
+        {
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor();
+            await clientManager.PopulateAsync(descriptor, client);
+            if (!descriptor.Permissions.Contains(offlinePermission))
+            {
+                descriptor.Permissions.Add(offlinePermission);
+                await clientManager.UpdateAsync(client, descriptor);
+                Console.WriteLine($"✅ Added offline_access permission to '{clientId}'");
+            }
+        }
     }
 }
 
