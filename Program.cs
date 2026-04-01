@@ -59,10 +59,8 @@ builder.Services.AddOpenIddict()
             .AllowAuthorizationCodeFlow()
             .AllowRefreshTokenFlow();
 
-        // JWKS locale
-        var jwksManager = builder.Services.BuildServiceProvider()
-            .GetRequiredService<JwksManager>();
-        var signingKey = jwksManager.GetOrCreateKey();
+        // JWKS locale — istanziato direttamente perché non ha dipendenze da DI
+        var signingKey = new JwksManager().GetOrCreateKey();
         options.AddSigningKey(signingKey);
 
         // Development encryption
@@ -84,6 +82,12 @@ builder.Services.AddOpenIddict()
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = OpenIddict.Validation.AspNetCore.OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+})
+.AddCookie("LocalAuth", options =>
+{
+    options.LoginPath = "/account/login";
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
 });
 
 Console.WriteLine($"📂 Database: {dbPath}");

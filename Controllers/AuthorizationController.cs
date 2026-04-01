@@ -39,19 +39,23 @@ public class AuthorizationController : Controller
 
         Console.WriteLine($"🔐 Authorization request from client: {request.ClientId}");
 
-        // Per questo spike, simuliamo che l'utente "admin" sia già loggato
-        // In produzione vera, qui ci sarebbe redirect a login page se non autenticato
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == "admin");
-        
+        // Controlla se l'utente è autenticato tramite cookie di sessione
+        var cookieAuth = await HttpContext.AuthenticateAsync("LocalAuth");
+        if (!cookieAuth.Succeeded)
+        {
+            var returnUrl = HttpContext.Request.Path + HttpContext.Request.QueryString;
+            return Redirect($"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+        }
+
+        var username = cookieAuth.Principal!.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
+
         if (user == null || !user.Enabled)
         {
-            return Forbid(
-                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                properties: new AuthenticationProperties(new Dictionary<string, string?>
-                {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
-                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "User not found or disabled"
-                }));
+            // Cookie valido ma utente disabilitato: forza nuovo login
+            await HttpContext.SignOutAsync("LocalAuth");
+            var returnUrl = HttpContext.Request.Path + HttpContext.Request.QueryString;
+            return Redirect($"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
         }
 
         // Recupera application
