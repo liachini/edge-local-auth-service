@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OAuth2 Test Client</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #0f1117;
+            color: #e1e4e8;
+            min-height: 100vh;
+            padding: 32px 16px;
+        }
+        .page-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .page-header h1 { font-size: 28px; color: #fff; margin-bottom: 8px; }
+        .page-header p { color: #8b949e; font-size: 15px; }
+        .badge {
+            display: inline-block;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 8px;
+        }
+
+        /* Scenari */
+        .scenario { background: #161b22; border: 1px solid #30363d; border-radius: 12px; margin-bottom: 28px; overflow: hidden; }
+        .scenario-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .scenario-num {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 15px; flex-shrink: 0;
+        }
+        .s1 .scenario-num { background: #1f4d8a; color: #58a6ff; }
+        .s2 .scenario-num { background: #3d2b00; color: #e3b341; }
+        .s3 .scenario-num { background: #1a3d1a; color: #56d364; }
+        .scenario-title { font-size: 17px; font-weight: 600; color: #fff; }
+        .scenario-subtitle { font-size: 13px; color: #8b949e; margin-top: 2px; }
+        .scenario-body { padding: 24px; }
+
+        /* Flow steps */
+        .flow {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 7px 12px;
+            font-size: 12px;
+            color: #8b949e;
+            transition: all 0.3s;
+        }
+        .step .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #30363d;
+            flex-shrink: 0;
+        }
+        .step.active { border-color: #388bfd; color: #58a6ff; background: #0d1f3c; }
+        .step.active .dot { background: #58a6ff; box-shadow: 0 0 6px #58a6ff; }
+        .step.done { border-color: #238636; color: #56d364; background: #0d2818; }
+        .step.done .dot { background: #56d364; }
+        .arrow { color: #30363d; font-size: 16px; padding: 0 2px; flex-shrink: 0; }
+
+        /* Form */
+        .form-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 160px; }
+        .form-group label { font-size: 12px; color: #8b949e; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group input {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 9px 12px;
+            color: #e1e4e8;
+            font-size: 14px;
+        }
+        .form-group input:focus { border-color: #388bfd; outline: none; }
+        .form-group.full { flex: 100%; min-width: 100%; }
+
+        /* Config box */
+        .config-box {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .config-box .config-title { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+        .config-item { display: flex; gap: 8px; margin-bottom: 5px; }
+        .config-key { color: #8b949e; min-width: 100px; flex-shrink: 0; }
+        .config-val { color: #e1e4e8; font-family: monospace; word-break: break-all; }
+        .config-val.highlight { color: #e3b341; }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-blue { background: #1f6feb; color: #fff; }
+        .btn-blue:hover { background: #388bfd; }
+        .btn-yellow { background: #9e6a03; color: #fff; }
+        .btn-yellow:hover { background: #b07b03; }
+        .btn-green { background: #238636; color: #fff; }
+        .btn-green:hover { background: #2ea043; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Response */
+        .response-area { margin-top: 20px; display: none; }
+        .response-area.visible { display: block; }
+        .response-tabs { display: flex; gap: 2px; margin-bottom: 0; }
+        .tab-btn {
+            padding: 6px 14px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            font-size: 12px;
+            cursor: pointer;
+            color: #8b949e;
+        }
+        .tab-btn.active { background: #0d1f3c; color: #58a6ff; border-color: #388bfd; }
+        .tab-content {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 0 6px 6px 6px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 320px;
+            overflow-y: auto;
+            color: #e1e4e8;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .status-ok { background: #0d2818; color: #56d364; border: 1px solid #238636; }
+        .status-err { background: #3d0e0e; color: #f85149; border: 1px solid #da3633; }
+
+        .loading { color: #8b949e; font-size: 13px; margin-top: 8px; display: none; }
+        .loading.visible { display: block; }
+
+        /* JWT claims */
+        .claims-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .claims-table th { text-align: left; padding: 6px 10px; color: #8b949e; border-bottom: 1px solid #21262d; font-weight: 500; }
+        .claims-table td { padding: 6px 10px; border-bottom: 1px solid #161b22; vertical-align: top; }
+        .claims-table td:first-child { color: #58a6ff; font-family: monospace; white-space: nowrap; }
+        .claims-table td:last-child { color: #e1e4e8; font-family: monospace; word-break: break-all; }
+        .token-exp { font-size: 12px; color: #8b949e; margin-top: 10px; padding-top: 10px; border-top: 1px solid #21262d; }
+        .exp-ok { color: #56d364; }
+        .exp-warn { color: #e3b341; }
+
+        .separator { height: 1px; background: #21262d; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <h1>🧪 OAuth2 Test Client</h1>
+    <p>Playground per testare i 3 scenari di autenticazione</p>
+    <span class="badge">LocalAuthService · @ViewBag.BaseUrl</span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SCENARIO 1: PASSWORD GRANT                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="scenario s1">
+    <div class="scenario-header">
+        <div class="scenario-num">1</div>
+        <div>
+            <div class="scenario-title">Password Grant</div>
+            <div class="scenario-subtitle">Operatore HMI — login diretto con username e password</div>
+        </div>
+    </div>
+    <div class="scenario-body">
+
+        <div class="flow" id="flow1">
+            <div class="step active" id="s1-step1"><div class="dot"></div>Credenziali</div>
+            <div class="arrow">›</div>
+            <div class="step" id="s1-step2"><div class="dot"></div>POST /connect/token</div>
+            <div class="arrow">›</div>
+            <div class="step" id="s1-step3"><div class="dot"></div>access_token</div>
+            <div class="arrow">›</div>
+            <div class="step" id="s1-step4"><div class="dot"></div>refresh_token</div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Username</label>
+                <input id="s1-username" type="text" value="admin" />
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input id="s1-password" type="text" value="admin123" />
+            </div>
+            <div class="form-group full">
+                <label>Scope</label>
+                <input id="s1-scope" type="text" value="openid profile email offline_access" />
+            </div>
+        </div>
+
+        <button class="btn btn-blue" onclick="runScenario1()">▶ Esegui Password Grant</button>
+        <div class="loading" id="s1-loading">⏳ Chiamata in corso...</div>
+
+        <div class="response-area" id="s1-response">
+            <div class="response-tabs">
+                <button class="tab-btn active" onclick="switchTab('s1','raw')">JSON risposta</button>
+                <button class="tab-btn" onclick="switchTab('s1','access')">Access Token</button>
+                <button class="tab-btn" onclick="switchTab('s1','refresh')">Refresh Token</button>
+            </div>
+            <div class="tab-content">
+                <div class="tab-panel active" id="s1-tab-raw"></div>
+                <div class="tab-panel" id="s1-tab-access"></div>
+                <div class="tab-panel" id="s1-tab-refresh"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SCENARIO 2: AUTHORIZATION CODE                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="scenario s2">
+    <div class="scenario-header">
+        <div class="scenario-num">2</div>
+        <div>
+            <div class="scenario-title">Authorization Code + Consent</div>
+            <div class="scenario-subtitle">MES Fornitore — accesso con login utente e schermata di consenso</div>
+        </div>
+    </div>
+    <div class="scenario-body">
+
+        <div class="flow">
+            <div class="step active"><div class="dot"></div>Authorize</div>
+            <div class="arrow">›</div>
+            <div class="step"><div class="dot"></div>Login</div>
+            <div class="arrow">›</div>
+            <div class="step"><div class="dot"></div>Consent</div>
+            <div class="arrow">›</div>
+            <div class="step"><div class="dot"></div>Code → Callback</div>
+            <div class="arrow">›</div>
+            <div class="step"><div class="dot"></div>Token</div>
+        </div>
+
+        <div class="config-box">
+            <div class="config-title">Configurazione client</div>
+            <div class="config-item"><span class="config-key">client_id</span><span class="config-val">mes-fornitore</span></div>
+            <div class="config-item"><span class="config-key">client_secret</span><span class="config-val">mes-secret-123</span></div>
+            <div class="config-item"><span class="config-key">redirect_uri</span><span class="config-val highlight">@ViewBag.BaseUrl/test/callback</span></div>
+            <div class="config-item"><span class="config-key">scope</span><span class="config-val">openid profile email offline_access</span></div>
+            <div class="config-item"><span class="config-key">consent</span><span class="config-val">Explicit (richiesto alla prima visita)</span></div>
+        </div>
+
+        <a class="btn btn-yellow"
+           href="@ViewBag.BaseUrl/connect/authorize?client_id=mes-fornitore&redirect_uri=@Uri.EscapeDataString(ViewBag.BaseUrl + "/test/callback")&response_type=code&scope=openid%20profile%20email%20offline_access">
+            ▶ Avvia Authorization Code Flow
+        </a>
+        <p style="margin-top:10px; font-size:13px; color:#8b949e;">
+            Il browser verrà reindirizzato alla login page, poi al consent screen, poi tornerà qui con il risultato.
+        </p>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SCENARIO 3: CLIENT CREDENTIALS                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="scenario s3">
+    <div class="scenario-header">
+        <div class="scenario-num">3</div>
+        <div>
+            <div class="scenario-title">Client Credentials (M2M)</div>
+            <div class="scenario-subtitle">Office API — accesso macchina-a-macchina senza utente</div>
+        </div>
+    </div>
+    <div class="scenario-body">
+
+        <div class="flow" id="flow3">
+            <div class="step active" id="s3-step1"><div class="dot"></div>client_id + secret</div>
+            <div class="arrow">›</div>
+            <div class="step" id="s3-step2"><div class="dot"></div>POST /connect/token</div>
+            <div class="arrow">›</div>
+            <div class="step" id="s3-step3"><div class="dot"></div>access_token</div>
+        </div>
+
+        <div class="config-box">
+            <div class="config-title">Configurazione client</div>
+            <div class="config-item"><span class="config-key">client_id</span><span class="config-val">office-api</span></div>
+            <div class="config-item"><span class="config-key">client_secret</span><span class="config-val">office-secret-456</span></div>
+            <div class="config-item"><span class="config-key">scope</span><span class="config-val">openid api.read api.write</span></div>
+            <div class="config-item"><span class="config-key">refresh_token</span><span class="config-val" style="color:#f85149">Non disponibile (no utente)</span></div>
+        </div>
+
+        <button class="btn btn-green" onclick="runScenario3()">▶ Esegui Client Credentials</button>
+        <div class="loading" id="s3-loading">⏳ Chiamata in corso...</div>
+
+        <div class="response-area" id="s3-response">
+            <div class="response-tabs">
+                <button class="tab-btn active" onclick="switchTab('s3','raw')">JSON risposta</button>
+                <button class="tab-btn" onclick="switchTab('s3','access')">Access Token</button>
+            </div>
+            <div class="tab-content">
+                <div class="tab-panel active" id="s3-tab-raw"></div>
+                <div class="tab-panel" id="s3-tab-access"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const BASE_URL = '@ViewBag.BaseUrl';
+
+// ── Scenario 1 ───────────────────────────────────────────────
+async function runScenario1() {
+    const username = document.getElementById('s1-username').value;
+    const password = document.getElementById('s1-password').value;
+    const scope    = document.getElementById('s1-scope').value;
+
+    setFlow1Step('request');
+    showLoading('s1', true);
+
+    const params = new URLSearchParams({
+        grant_type: 'password', username, password,
+        client_id: 'hmi-local', scope
+    });
+
+    try {
+        const res  = await fetch(`${BASE_URL}/connect/token`, { method: 'POST', body: params });
+        const data = await res.json();
+        showLoading('s1', false);
+
+        const hasRefresh = !!data.refresh_token;
+        setFlow1Step(res.ok ? (hasRefresh ? 'done-refresh' : 'done') : 'error');
+
+        document.getElementById('s1-tab-raw').textContent = JSON.stringify(data, null, 2);
+
+        if (data.access_token) {
+            document.getElementById('s1-tab-access').innerHTML = renderTokenDetail(data.access_token);
+        }
+        if (data.refresh_token) {
+            document.getElementById('s1-tab-refresh').innerHTML = renderRefreshInfo(data.refresh_token);
+        } else {
+            document.getElementById('s1-tab-refresh').innerHTML =
+                '<span style="color:#8b949e">Nessun refresh_token — aggiungi "offline_access" allo scope.</span>';
+        }
+
+        document.getElementById('s1-response').classList.add('visible');
+    } catch(e) {
+        showLoading('s1', false);
+        document.getElementById('s1-tab-raw').textContent = 'Errore: ' + e.message;
+        document.getElementById('s1-response').classList.add('visible');
+    }
+}
+
+function setFlow1Step(state) {
+    const steps = ['s1-step1','s1-step2','s1-step3','s1-step4'];
+    steps.forEach(id => {
+        document.getElementById(id).className = 'step';
+    });
+    if (state === 'request') {
+        document.getElementById('s1-step1').classList.add('done');
+        document.getElementById('s1-step2').classList.add('active');
+    } else if (state === 'done') {
+        document.getElementById('s1-step1').classList.add('done');
+        document.getElementById('s1-step2').classList.add('done');
+        document.getElementById('s1-step3').classList.add('done');
+    } else if (state === 'done-refresh') {
+        steps.forEach(id => document.getElementById(id).classList.add('done'));
+    } else if (state === 'error') {
+        document.getElementById('s1-step1').classList.add('done');
+        document.getElementById('s1-step2').classList.add('active');
+    }
+}
+
+// ── Scenario 3 ───────────────────────────────────────────────
+async function runScenario3() {
+    document.getElementById('s3-step1').className = 'step done';
+    document.getElementById('s3-step2').className = 'step active';
+    showLoading('s3', true);
+
+    const params = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: 'office-api',
+        client_secret: 'office-secret-456',
+        scope: 'openid api.read api.write'
+    });
+
+    try {
+        const res  = await fetch(`${BASE_URL}/connect/token`, { method: 'POST', body: params });
+        const data = await res.json();
+        showLoading('s3', false);
+
+        document.getElementById('s3-step2').className = 'step done';
+        document.getElementById('s3-step3').className = 'step done';
+
+        document.getElementById('s3-tab-raw').textContent = JSON.stringify(data, null, 2);
+        if (data.access_token) {
+            document.getElementById('s3-tab-access').innerHTML = renderTokenDetail(data.access_token);
+        }
+        document.getElementById('s3-response').classList.add('visible');
+    } catch(e) {
+        showLoading('s3', false);
+        document.getElementById('s3-tab-raw').textContent = 'Errore: ' + e.message;
+        document.getElementById('s3-response').classList.add('visible');
+    }
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(scenario, tab) {
+    const container = document.getElementById(`${scenario}-response`);
+    container.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        const tabs = ['raw','access','refresh'];
+        btn.classList.toggle('active', tabs[i] === tab || (tab === 'refresh' && i === 2));
+    });
+    // simpler: match by text
+    container.querySelectorAll('.tab-btn').forEach(btn => {
+        const map = { raw: 'JSON risposta', access: 'Access Token', refresh: 'Refresh Token' };
+        btn.classList.toggle('active', btn.textContent.trim() === map[tab]);
+    });
+    container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const panel = document.getElementById(`${scenario}-tab-${tab}`);
+    if (panel) panel.classList.add('active');
+}
+
+// ── JWT helpers ───────────────────────────────────────────────
+function decodeJwt(token) {
+    try {
+        const b64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+        return JSON.parse(atob(b64));
+    } catch(e) { return null; }
+}
+
+function renderTokenDetail(token) {
+    const payload = decodeJwt(token);
+    if (!payload) return '<span style="color:#f85149">Token non decodificabile</span>';
+
+    const now = Math.floor(Date.now() / 1000);
+    const exp = payload.exp;
+    const remaining = exp ? exp - now : null;
+    const expClass  = remaining > 300 ? 'exp-ok' : 'exp-warn';
+    const expLabel  = remaining > 0
+        ? `Scade tra ${Math.floor(remaining/60)}m ${remaining%60}s`
+        : 'Scaduto';
+
+    let rows = '';
+    for (const [k, v] of Object.entries(payload)) {
+        let val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        if (k === 'exp' || k === 'iat' || k === 'nbf') {
+            val += `  <span style="color:#8b949e">(${new Date(v*1000).toLocaleString()})</span>`;
+        }
+        rows += `<tr><td>${k}</td><td>${val}</td></tr>`;
+    }
+
+    return `
+        <table class="claims-table">
+            <thead><tr><th>Claim</th><th>Valore</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        ${exp ? `<div class="token-exp"><span class="${expClass}">⏱ ${expLabel}</span></div>` : ''}
+    `;
+}
+
+function renderRefreshInfo(token) {
+    return `
+        <div style="font-size:13px; color:#8b949e; margin-bottom:12px;">
+            Il refresh token è opaco (non è un JWT decodificabile). Viene conservato dal client e usato per rinnovare l'access token.
+        </div>
+        <div class="config-box" style="margin-bottom:0">
+            <div class="config-item"><span class="config-key">grant_type</span><span class="config-val">refresh_token</span></div>
+            <div class="config-item"><span class="config-key">client_id</span><span class="config-val">hmi-local</span></div>
+            <div class="config-item"><span class="config-key">refresh_token</span><span class="config-val highlight" style="word-break:break-all">${token}</span></div>
+        </div>
+    `;
+}
+
+function showLoading(scenario, show) {
+    document.getElementById(`${scenario}-loading`).classList.toggle('visible', show);
+}
+</script>
+</body>
+</html>

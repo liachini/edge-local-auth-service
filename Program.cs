@@ -196,7 +196,8 @@ using (var scope = app.Services.CreateScope())
             ConsentType = OpenIddict.Abstractions.OpenIddictConstants.ConsentTypes.Explicit, // Richiede consent!
             RedirectUris =
             {
-                new Uri("http://localhost:7000/callback") // URL di test locale
+                new Uri("http://localhost:7000/callback"),
+                new Uri("http://localhost:5063/test/callback")
             },
             Permissions =
             {
@@ -236,6 +237,21 @@ using (var scope = app.Services.CreateScope())
         
         Console.WriteLine("✅ OAuth client 'office-api' registered (service account)");
     }
+    }
+
+    // Aggiunge /test/callback a mes-fornitore (se mancante)
+    var mesClient = await clientManager.FindByClientIdAsync("mes-fornitore");
+    if (mesClient != null)
+    {
+        var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor();
+        await clientManager.PopulateAsync(descriptor, mesClient);
+        var testCallbackUri = new Uri("http://localhost:5063/test/callback");
+        if (!descriptor.RedirectUris.Contains(testCallbackUri))
+        {
+            descriptor.RedirectUris.Add(testCallbackUri);
+            await clientManager.UpdateAsync(mesClient, descriptor);
+            Console.WriteLine("✅ Added test/callback redirect URI to 'mes-fornitore'");
+        }
     }
 
     // Aggiorna client esistenti con il permesso OfflineAccess (se mancante)
