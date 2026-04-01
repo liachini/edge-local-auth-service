@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LocalAuthService", "LocalAuthService.csproj", "{0208127A-437B-DD75-C8CF-A7526DA4CAC1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0208127A-437B-DD75-C8CF-A7526DA4CAC1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0208127A-437B-DD75-C8CF-A7526DA4CAC1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0208127A-437B-DD75-C8CF-A7526DA4CAC1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0208127A-437B-DD75-C8CF-A7526DA4CAC1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {065B0B39-38A2-4974-8936-44D8E09F3587}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,152 @@
+@model LocalAuthService.Controllers.ConsentViewModel
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authorization Required</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .consent-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 480px;
+            width: 90%;
+            padding: 40px;
+        }
+        .icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin: 0 0 10px 0;
+            text-align: center;
+        }
+        .app-name {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .message {
+            color: #666;
+            text-align: center;
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+        .scopes {
+            background: #f7f9fc;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+        }
+        .scopes-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .scope-list {
+            color: #666;
+            line-height: 1.8;
+        }
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-allow {
+            background: #28a745;
+            color: white;
+        }
+        .btn-allow:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        .btn-deny {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-deny:hover {
+            background: #5a6268;
+        }
+        .security-note {
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="consent-container">
+        <div class="icon">🔐</div>
+        <h1>Authorization Request</h1>
+        
+        <p class="message">
+            The application <span class="app-name">@Model.ApplicationName</span> 
+            is requesting access to your account.
+        </p>
+        
+        <div class="scopes">
+            <div class="scopes-title">📋 Requested Permissions:</div>
+            <div class="scope-list">@Model.Scope</div>
+        </div>
+        
+        <p class="message">
+            Do you want to allow this application to access your information?
+        </p>
+        
+<form method="post" action="/connect/authorize/accept">
+            <!-- Hidden fields per preservare parametri OAuth2 -->
+            <input type="hidden" name="client_id" value="@Model.ClientId" />
+            <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+            <input type="hidden" name="response_type" value="@Model.ResponseType" />
+            <input type="hidden" name="scope" value="@Model.RequestedScopes" />
+            @if (!string.IsNullOrEmpty(Model.State))
+            {
+                <input type="hidden" name="state" value="@Model.State" />
+            }
+            @if (!string.IsNullOrEmpty(Model.Nonce))
+            {
+                <input type="hidden" name="nonce" value="@Model.Nonce" />
+            }
+            @if (!string.IsNullOrEmpty(Model.CodeChallenge))
+            {
+                <input type="hidden" name="code_challenge" value="@Model.CodeChallenge" />
+                <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
+            }
+            
+            <div class="buttons">
+                <button type="submit" class="btn-allow">✓ Allow Access</button>
+                <button type="button" class="btn-deny" onclick="window.close()">✗ Deny</button>
+            </div>
+        </form>        
+        <div class="security-note">
+            🔒 Your data is protected and encrypted
+        </div>
+    </div>
+</body>
+</html>
