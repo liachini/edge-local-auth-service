@@ -1,15 +1,41 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using LocalAuthService.Data;
 
 namespace LocalAuthService.Controllers;
 
 public class TestController : Controller
 {
+    private readonly AuthDbContext _db;
+
+    public TestController(AuthDbContext db)
+    {
+        _db = db;
+    }
+
     [HttpGet("~/test")]
     public IActionResult Index()
     {
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
         ViewBag.BaseUrl = baseUrl;
         return View();
+    }
+
+    [HttpPost("~/test/revoke-consent")]
+    public async Task<IActionResult> RevokeConsent([FromForm] string clientId)
+    {
+        var consents = await _db.UserConsents
+            .Where(c => c.ClientId == clientId && !c.IsRevoked)
+            .ToListAsync();
+
+        foreach (var c in consents)
+            c.IsRevoked = true;
+
+        await _db.SaveChangesAsync();
+
+        Console.WriteLine($"🗑️ Revoked {consents.Count} consent(s) for client '{clientId}'");
+
+        return Redirect("/test");
     }
 
     [HttpGet("~/test/callback")]

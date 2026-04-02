@@ -46,7 +46,10 @@ public class AccountController : Controller
         var identity = new ClaimsIdentity(claims, "LocalAuth");
         var principal = new ClaimsPrincipal(identity);
 
-        await HttpContext.SignInAsync("LocalAuth", principal);
+        await HttpContext.SignInAsync("LocalAuth", principal, new AuthenticationProperties
+        {
+            IsPersistent = true  // Cookie sopravvive alla chiusura del browser (scade dopo 8h)
+        });
 
         Console.WriteLine($"✅ User '{user.Username}' logged in via cookie");
 

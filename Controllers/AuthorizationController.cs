@@ -17,17 +17,20 @@ public class AuthorizationController : Controller
     private readonly IOpenIddictAuthorizationManager _authorizationManager;
     private readonly IOpenIddictScopeManager _scopeManager;
     private readonly AuthDbContext _db;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public AuthorizationController(
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictAuthorizationManager authorizationManager,
         IOpenIddictScopeManager scopeManager,
-        AuthDbContext db)
+        AuthDbContext db,
+        IServiceScopeFactory scopeFactory)
     {
         _applicationManager = applicationManager;
         _authorizationManager = authorizationManager;
         _scopeManager = scopeManager;
         _db = db;
+        _scopeFactory = scopeFactory;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -80,10 +83,11 @@ public class AuthorizationController : Controller
         // Controlla se esiste già un consent salvato nella nostra tabella
         var scopesJson = System.Text.Json.JsonSerializer.Serialize(request.GetScopes().ToArray());
         var existingConsent = await _db.UserConsents
-            .FirstOrDefaultAsync(c => 
-                c.UserId == user.Id && 
-                c.ClientId == request.ClientId && 
-                !c.IsRevoked);
+            .FirstOrDefaultAsync(c =>
+                c.UserId == user.Id &&
+                c.ClientId == request.ClientId &&
+                !c.IsRevoked &&
+                (c.ExpiresAt == null || c.ExpiresAt > DateTime.UtcNow));
 
         // Se richiede consent esplicito E non c'è autorizzazione permanente E non è appena stato dato
         if (consentType == ConsentTypes.Explicit && existingConsent == null && consentGranted != "true")        {
@@ -122,21 +126,22 @@ public class AuthorizationController : Controller
         [FromForm] string redirect_uri,
         [FromForm] string response_type,
         [FromForm] string scope,
+        [FromForm] string consent_duration = "30d",
         [FromForm] string? state = null,
         [FromForm] string? nonce = null,
         [FromForm] string? code_challenge = null,
         [FromForm] string? code_challenge_method = null)
     {
-        Console.WriteLine($"✅ User accepted consent for: {client_id}");
+        Console.WriteLine($"✅ User accepted consent for: {client_id} (duration: {consent_duration})");
 
-        // Costruisci query string con tutti i parametri
         var queryParams = new Dictionary<string, string>
         {
-            ["client_id"] = client_id,
-            ["redirect_uri"] = redirect_uri,
-            ["response_type"] = response_type,
-            ["scope"] = scope,
-            ["consent_granted"] = "true" // Flag che indica consent accettato
+            ["client_id"]        = client_id,
+            ["redirect_uri"]     = redirect_uri,
+            ["response_type"]    = response_type,
+            ["scope"]            = scope,
+            ["consent_granted"]  = "true",
+            ["consent_duration"] = consent_duration
         };
 
         if (!string.IsNullOrEmpty(state))
@@ -147,14 +152,13 @@ public class AuthorizationController : Controller
 
         if (!string.IsNullOrEmpty(code_challenge))
         {
-            queryParams["code_challenge"] = code_challenge;
+            queryParams["code_challenge"]        = code_challenge;
             queryParams["code_challenge_method"] = code_challenge_method ?? "";
         }
 
-        var queryString = string.Join("&", 
+        var queryString = string.Join("&",
             queryParams.Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}"));
 
-        // Redirect a /connect/authorize con consent granted
         return Redirect($"/connect/authorize?{queryString}");
     }
 
@@ -197,39 +201,64 @@ public class AuthorizationController : Controller
 
         Console.WriteLine($"🎫 Issuing authorization code for user: {user.Username}");
 
-        // Salva consent PRIMA di SignIn (in background task per non bloccare)
         var consentGranted = request.GetParameter("consent_granted")?.Value?.ToString();
         if (consentGranted == "true")
         {
+            // Calcola scadenza dalla durata scelta dall'utente nella consent screen
+            var durationParam = request.GetParameter("consent_duration")?.Value?.ToString() ?? "30d";
+            DateTime? expiresAt = durationParam switch
+            {
+                "10s"   => DateTime.UtcNow.AddSeconds(10),
+                "1d"    => DateTime.UtcNow.AddDays(1),
+                "7d"    => DateTime.UtcNow.AddDays(7),
+                "30d"   => DateTime.UtcNow.AddDays(30),
+                "90d"   => DateTime.UtcNow.AddDays(90),
+                "never" => null,
+                _       => DateTime.UtcNow.AddDays(30)
+            };
+
+            Console.WriteLine($"⏱ Consent expires: {(expiresAt.HasValue ? expiresAt.Value.ToString("u") : "never")}");
+
+            // Usa uno scope DI separato: il DbContext della request è condiviso con
+            // OpenIddict durante il SignIn — usarlo in parallelo causa DbUpdateConcurrencyException
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    using var scope = _db.Database.BeginTransaction();
-                    
-                    var existingConsent = await _db.UserConsents
-                        .FirstOrDefaultAsync(c => 
-                            c.UserId == user.Id && 
-                            c.ClientId == request.ClientId && 
-                            !c.IsRevoked);
+                    using var diScope = _scopeFactory.CreateScope();
+                    var db = diScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+                    var scopesJson = System.Text.Json.JsonSerializer.Serialize(request.GetScopes().ToArray());
+
+                    // Cerca qualsiasi consent esistente (anche scaduto o revocato)
+                    // per poterlo aggiornare invece di lasciare record duplicati
+                    var existingConsent = await db.UserConsents
+                        .FirstOrDefaultAsync(c =>
+                            c.UserId == user.Id &&
+                            c.ClientId == request.ClientId);
 
                     if (existingConsent == null)
                     {
-                        var scopesJson = System.Text.Json.JsonSerializer.Serialize(request.GetScopes().ToArray());
-                        var consent = new UserConsent
+                        db.UserConsents.Add(new UserConsent
                         {
                             UserId = user.Id,
                             ClientId = request.ClientId!,
                             Scopes = scopesJson,
-                            GrantedAt = DateTime.UtcNow
-                        };
-                        
-                        _db.UserConsents.Add(consent);
-                        await _db.SaveChangesAsync();
-                        await scope.CommitAsync();
-                        
-                        Console.WriteLine($"✅ Consent saved in background");
+                            GrantedAt = DateTime.UtcNow,
+                            ExpiresAt = expiresAt
+                        });
                     }
+                    else
+                    {
+                        // Aggiorna il record esistente (può essere scaduto o revocato)
+                        existingConsent.Scopes = scopesJson;
+                        existingConsent.GrantedAt = DateTime.UtcNow;
+                        existingConsent.ExpiresAt = expiresAt;
+                        existingConsent.IsRevoked = false;
+                    }
+
+                    await db.SaveChangesAsync();
+                    Console.WriteLine($"✅ Consent saved in background");
                 }
                 catch (Exception ex)
                 {

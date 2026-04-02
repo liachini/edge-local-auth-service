@@ -1,6 +1,6 @@
 # LocalAuthService - Context File per Claude in VS Code
 
-**Ultimo aggiornamento:** 2026-04-01
+**Ultimo aggiornamento:** 2026-04-02
 
 Questo file contiene il contesto completo del progetto per permettere a Claude (in VS Code o altri IDE) di capire immediatamente lo stato attuale e i prossimi passi.
 
@@ -28,16 +28,18 @@ Questo file contiene il contesto completo del progetto per permettere a Claude (
    - ✅ **Authorization Code + Login page + Consent persistente** (MES terza parte)
    - ✅ **Client Credentials** (M2M Office API)
 
-4. **Consent persistente**
-   - Tabella custom `UserConsents`
-   - Salvataggio in background (non blocca flow)
-   - Skip consent su richieste successive
-   - Funziona perfettamente
+4. **Consent con scadenza scelta dall'utente**
+   - Tabella custom `UserConsents` (campo `ExpiresAt` nullable)
+   - L'utente sceglie la durata nella consent screen: 10s (test), 1d, 7d, 30d (default), 90d, never
+   - Salvataggio in background con `IServiceScopeFactory` (scope DI separato per evitare `DbUpdateConcurrencyException`)
+   - Skip consent se non scaduto; upsert se scaduto o revocato
+   - Cookie login persistente (`IsPersistent = true`, scade dopo 8h)
 
 5. **Controllers implementati:**
    - `TokenController`: gestisce `/connect/token` (password, client_credentials, authorization_code, refresh_token)
    - `AuthorizationController`: gestisce `/connect/authorize` e consent screen
    - `AccountController`: gestisce `/account/login` e `/account/logout` (cookie auth)
+   - `TestController`: gestisce `/test` (playground) e `/test/callback` (scenario 2) e `/test/revoke-consent`
 
 6. **Seed data:**
    - Users: `admin/admin123` (role: admin), `operator1/oper123` (role: operator)
@@ -146,15 +148,19 @@ LocalAuthService/
 │   └── JwksManager.cs               # ✅ Completo (genera RSA, salva/carica)
 │
 ├── Controllers/
-│   ├── TokenController.cs           # ✅ Completo (3 grant types)
-│   ├── AuthorizationController.cs   # ✅ Completo (cookie auth + consent persistente)
-│   └── AccountController.cs         # ✅ Completo (login/logout con cookie)
+│   ├── TokenController.cs           # ✅ Completo (4 grant types incl. refresh_token)
+│   ├── AuthorizationController.cs   # ✅ Completo (cookie auth + consent con scadenza)
+│   ├── AccountController.cs         # ✅ Completo (login/logout, cookie persistente 8h)
+│   └── TestController.cs            # ✅ Completo (playground /test, callback, revoca)
 │
 ├── Views/
 │   ├── Account/
 │   │   └── Login.cshtml             # ✅ Completo (form login)
-│   └── Authorization/
-│       └── Consent.cshtml           # ✅ Completo (UI consent)
+│   ├── Authorization/
+│   │   └── Consent.cshtml           # ✅ Completo (UI consent + selettore durata)
+│   └── Test/
+│       ├── Index.cshtml             # ✅ Completo (playground 3 scenari + JWT decoder)
+│       └── Callback.cshtml          # ✅ Completo (risultato scenario 2)
 │
 ├── Program.cs                       # ✅ Completo (OpenIddict config, seed)
 └── appsettings.json                # ✅ Completo
@@ -608,6 +614,10 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [x] Consent persistente
 - [x] Seed data
 - [x] Refresh token (rotation automatica, scope offline_access)
+- [x] Consent con scadenza scelta dall'utente (10s/1d/7d/30d/90d/never)
+- [x] Cookie login persistente (8h, sopravvive chiusura browser)
+- [x] Test client integrato (/test) con JWT decoder e revoca consent
+- [x] Fix DbUpdateConcurrencyException (IServiceScopeFactory nel background task)
 - [x] Token signing locale
 
 ### Online Mode (Next) 🔄
@@ -626,4 +636,4 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ---
 
-**Ultimo test funzionante:** 2026-04-01 - Tutti e 3 gli scenari OAuth2 completati con login page, consent persistente e refresh token ✅
+**Ultimo test funzionante:** 2026-04-02 - Tutti e 3 gli scenari OAuth2 + refresh token + consent con scadenza + test client `/test` ✅

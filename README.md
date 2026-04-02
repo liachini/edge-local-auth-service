@@ -611,14 +611,14 @@ $response.scope          # openid profile email offline_access
 http://localhost:5063/connect/authorize?client_id=mes-fornitore&redirect_uri=http://localhost:7000/callback&response_type=code&scope=openid%20profile%20email
 ```
 
-**Prima volta:**
-- ✅ Mostra consent screen
-- Click "Allow"
-- Consent salvato in DB
+**Prima volta (o dopo scadenza):**
+- ✅ Mostra consent screen con selettore durata
+- L'utente sceglie per quanto tempo autorizzare: 10 sec (test), 1 giorno, 7 giorni, 30 giorni (default), 90 giorni, Senza scadenza
+- Click "Allow" → consent salvato in DB con `ExpiresAt`
 - Redirect con code
 
-**Volte successive:**
-- ✅ Skip consent (già salvato)
+**Volte successive (entro la scadenza):**
+- ✅ Skip consent (già salvato e non scaduto)
 - Redirect DIRETTO con code
 
 **STEP 2: Scambia Code per Token (PowerShell)**
@@ -880,12 +880,13 @@ MIT License - Progetto spike per architettura offline-first OAuth2
 **OFFLINE MODE: 100% COMPLETO** ✅
 
 - ✅ Password Grant funzionante
-- ✅ Authorization Code + Login page + Consent persistente
+- ✅ Authorization Code + Login page + Consent con scadenza scelta dall'utente
 - ✅ Client Credentials funzionante
 - ✅ Refresh Token con rotation automatica
 - ✅ JWKS locale generata e funzionante
 - ✅ Token JWT firmati localmente
 - ✅ Database SQLite locale
-- ✅ Consent salvato e riutilizzato
+- ✅ Test client integrato (`/test`) con decoder JWT e revoca consent
+- ✅ Cookie sessione persistente (sopravvive alla chiusura del browser)
 
 **PROSSIMO:** Keycloak sync (online mode)

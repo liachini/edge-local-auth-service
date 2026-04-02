@@ -92,6 +92,38 @@
         .btn-deny:hover {
             background: #5a6268;
         }
+        .duration-section {
+            margin: 20px 0;
+        }
+        .duration-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .duration-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .duration-option input[type="radio"] { display: none; }
+        .duration-option label {
+            display: block;
+            padding: 8px 16px;
+            border: 2px solid #e1e5ee;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #555;
+        }
+        .duration-option input[type="radio"]:checked + label {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .duration-option label:hover {
+            border-color: #667eea;
+        }
         .security-note {
             text-align: center;
             color: #999;
@@ -139,6 +171,36 @@
                 <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
             }
             
+            <div class="duration-section">
+                <div class="duration-label">⏱ Durata autorizzazione:</div>
+                <div class="duration-options">
+                    <div class="duration-option">
+                        <input type="radio" id="d-10s" name="consent_duration" value="10s" />
+                        <label for="d-10s">10 sec (test)</label>
+                    </div>
+                    <div class="duration-option">
+                        <input type="radio" id="d-1d" name="consent_duration" value="1d" />
+                        <label for="d-1d">1 giorno</label>
+                    </div>
+                    <div class="duration-option">
+                        <input type="radio" id="d-7d" name="consent_duration" value="7d" />
+                        <label for="d-7d">7 giorni</label>
+                    </div>
+                    <div class="duration-option">
+                        <input type="radio" id="d-30d" name="consent_duration" value="30d" checked />
+                        <label for="d-30d">30 giorni</label>
+                    </div>
+                    <div class="duration-option">
+                        <input type="radio" id="d-90d" name="consent_duration" value="90d" />
+                        <label for="d-90d">90 giorni</label>
+                    </div>
+                    <div class="duration-option">
+                        <input type="radio" id="d-never" name="consent_duration" value="never" />
+                        <label for="d-never">Senza scadenza</label>
+                    </div>
+                </div>
+            </div>
+
             <div class="buttons">
                 <button type="submit" class="btn-allow">✓ Allow Access</button>
                 <button type="button" class="btn-deny" onclick="window.close()">✗ Deny</button>

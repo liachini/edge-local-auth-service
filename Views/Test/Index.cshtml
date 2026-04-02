@@ -289,12 +289,22 @@
             <div class="config-item"><span class="config-key">consent</span><span class="config-val">Explicit (richiesto alla prima visita)</span></div>
         </div>
 
-        <a class="btn btn-yellow"
-           href="@ViewBag.BaseUrl/connect/authorize?client_id=mes-fornitore&redirect_uri=@Uri.EscapeDataString(ViewBag.BaseUrl + "/test/callback")&response_type=code&scope=openid%20profile%20email%20offline_access">
-            ▶ Avvia Authorization Code Flow
-        </a>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <a class="btn btn-yellow"
+               href="@ViewBag.BaseUrl/connect/authorize?client_id=mes-fornitore&redirect_uri=@Uri.EscapeDataString(ViewBag.BaseUrl + "/test/callback")&response_type=code&scope=openid%20profile%20email%20offline_access">
+                ▶ Avvia Authorization Code Flow
+            </a>
+            <form method="post" action="/test/revoke-consent" style="margin:0">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="clientId" value="mes-fornitore" />
+                <button type="submit" class="btn" style="background:#21262d; border:1px solid #f85149; color:#f85149; font-size:13px; padding:9px 16px;"
+                        onclick="return confirm('Revocare il consent salvato per mes-fornitore? Il flow mostrerà di nuovo la schermata di consenso.')">
+                    🗑 Revoca consent
+                </button>
+            </form>
+        </div>
         <p style="margin-top:10px; font-size:13px; color:#8b949e;">
-            Il browser verrà reindirizzato alla login page, poi al consent screen, poi tornerà qui con il risultato.
+            Il browser verrà reindirizzato alla login page (solo se il cookie è scaduto), poi al consent screen (solo al primo accesso o dopo revoca), poi tornerà qui con il risultato.
         </p>
     </div>
 </div>
