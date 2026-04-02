@@ -39,7 +39,8 @@ Questo file contiene il contesto completo del progetto per permettere a Claude (
    - `TokenController`: gestisce `/connect/token` (password, client_credentials, authorization_code, refresh_token)
    - `AuthorizationController`: gestisce `/connect/authorize` e consent screen
    - `AccountController`: gestisce `/account/login` e `/account/logout` (cookie auth)
-   - `TestController`: gestisce `/test` (playground) e `/test/callback` (scenario 2) e `/test/revoke-consent`
+   - `TestController`: gestisce `/test` (playground), `/test/callback` (scenario 2), `/test/revoke-consent`
+   - `ApiController`: gestisce `GET /api/me` (endpoint protetto da Bearer token, restituisce claims)
 
 6. **Seed data:**
    - Users: `admin/admin123` (role: admin), `operator1/oper123` (role: operator)
@@ -151,7 +152,8 @@ LocalAuthService/
 │   ├── TokenController.cs           # ✅ Completo (4 grant types incl. refresh_token)
 │   ├── AuthorizationController.cs   # ✅ Completo (cookie auth + consent con scadenza)
 │   ├── AccountController.cs         # ✅ Completo (login/logout, cookie persistente 8h)
-│   └── TestController.cs            # ✅ Completo (playground /test, callback, revoca)
+│   ├── TestController.cs            # ✅ Completo (playground /test, callback, revoca)
+│   └── ApiController.cs             # ✅ Completo (GET /api/me protetto da Bearer token)
 │
 ├── Views/
 │   ├── Account/
@@ -159,8 +161,8 @@ LocalAuthService/
 │   ├── Authorization/
 │   │   └── Consent.cshtml           # ✅ Completo (UI consent + selettore durata)
 │   └── Test/
-│       ├── Index.cshtml             # ✅ Completo (playground 3 scenari + JWT decoder)
-│       └── Callback.cshtml          # ✅ Completo (risultato scenario 2)
+│       ├── Index.cshtml             # ✅ Completo (3 scenari + JWT decoder + tab Chiama API)
+│       └── Callback.cshtml          # ✅ Completo (scenario 2: code → token → API validation)
 │
 ├── Program.cs                       # ✅ Completo (OpenIddict config, seed)
 └── appsettings.json                # ✅ Completo
@@ -616,7 +618,8 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [x] Refresh token (rotation automatica, scope offline_access)
 - [x] Consent con scadenza scelta dall'utente (10s/1d/7d/30d/90d/never)
 - [x] Cookie login persistente (8h, sopravvive chiusura browser)
-- [x] Test client integrato (/test) con JWT decoder e revoca consent
+- [x] Test client integrato (/test) con JWT decoder, revoca consent e tab "Chiama API"
+- [x] Endpoint protetto GET /api/me (Bearer token validation + restituzione claims lato server)
 - [x] Fix DbUpdateConcurrencyException (IServiceScopeFactory nel background task)
 - [x] Token signing locale
 
@@ -636,4 +639,4 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ---
 
-**Ultimo test funzionante:** 2026-04-02 - Tutti e 3 gli scenari OAuth2 + refresh token + consent con scadenza + test client `/test` ✅
+**Ultimo test funzionante:** 2026-04-02 - Tutti e 3 gli scenari OAuth2 + refresh token + consent con scadenza + test client `/test` + validazione token su `/api/me` ✅

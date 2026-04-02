@@ -189,6 +189,34 @@
         .exp-warn { color: #e3b341; }
 
         .separator { height: 1px; background: #21262d; margin: 20px 0; }
+
+        /* API call section */
+        .api-call-box { padding: 4px 0; }
+        .api-url {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: #21262d; border: 1px solid #30363d;
+            border-radius: 6px; padding: 8px 14px;
+            font-family: monospace; font-size: 13px; color: #8b949e;
+            margin-bottom: 14px;
+        }
+        .api-url .method { color: #56d364; font-weight: 700; }
+        .api-url .path { color: #58a6ff; }
+        .api-url .auth-badge {
+            background: #0d1f3c; color: #58a6ff;
+            border: 1px solid #388bfd; border-radius: 4px;
+            padding: 2px 7px; font-size: 11px;
+        }
+        .api-result { margin-top: 12px; }
+        .api-result-header {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 8px; font-size: 13px;
+        }
+        .http-status {
+            padding: 3px 10px; border-radius: 4px;
+            font-size: 12px; font-weight: 700;
+        }
+        .http-200 { background: #0d2818; color: #56d364; border: 1px solid #238636; }
+        .http-401 { background: #3d0e0e; color: #f85149; border: 1px solid #da3633; }
     </style>
 </head>
 <body>
@@ -245,11 +273,13 @@
                 <button class="tab-btn active" onclick="switchTab('s1','raw')">JSON risposta</button>
                 <button class="tab-btn" onclick="switchTab('s1','access')">Access Token</button>
                 <button class="tab-btn" onclick="switchTab('s1','refresh')">Refresh Token</button>
+                <button class="tab-btn" onclick="switchTab('s1','api')">🔒 Chiama API</button>
             </div>
             <div class="tab-content">
                 <div class="tab-panel active" id="s1-tab-raw"></div>
                 <div class="tab-panel" id="s1-tab-access"></div>
                 <div class="tab-panel" id="s1-tab-refresh"></div>
+                <div class="tab-panel" id="s1-tab-api"><div id="s1-api-content"></div></div>
             </div>
         </div>
     </div>
@@ -345,10 +375,12 @@
             <div class="response-tabs">
                 <button class="tab-btn active" onclick="switchTab('s3','raw')">JSON risposta</button>
                 <button class="tab-btn" onclick="switchTab('s3','access')">Access Token</button>
+                <button class="tab-btn" onclick="switchTab('s3','api')">🔒 Chiama API</button>
             </div>
             <div class="tab-content">
                 <div class="tab-panel active" id="s3-tab-raw"></div>
                 <div class="tab-panel" id="s3-tab-access"></div>
+                <div class="tab-panel" id="s3-tab-api"><div id="s3-api-content"></div></div>
             </div>
         </div>
     </div>
@@ -383,6 +415,7 @@ async function runScenario1() {
 
         if (data.access_token) {
             document.getElementById('s1-tab-access').innerHTML = renderTokenDetail(data.access_token);
+            document.getElementById('s1-api-content').innerHTML = renderApiCallBox('s1', data.access_token);
         }
         if (data.refresh_token) {
             document.getElementById('s1-tab-refresh').innerHTML = renderRefreshInfo(data.refresh_token);
@@ -443,6 +476,7 @@ async function runScenario3() {
         document.getElementById('s3-tab-raw').textContent = JSON.stringify(data, null, 2);
         if (data.access_token) {
             document.getElementById('s3-tab-access').innerHTML = renderTokenDetail(data.access_token);
+            document.getElementById('s3-api-content').innerHTML = renderApiCallBox('s3', data.access_token);
         }
         document.getElementById('s3-response').classList.add('visible');
     } catch(e) {
@@ -522,6 +556,65 @@ function renderRefreshInfo(token) {
 
 function showLoading(scenario, show) {
     document.getElementById(`${scenario}-loading`).classList.toggle('visible', show);
+}
+
+// ── API call ──────────────────────────────────────────────────
+function renderApiCallBox(scenario, token) {
+    return `
+        <div class="api-call-box">
+            <div class="api-url">
+                <span class="method">GET</span>
+                <span class="path">${BASE_URL}/api/me</span>
+                <span class="auth-badge">Authorization: Bearer</span>
+            </div>
+            <button class="btn btn-blue" style="font-size:13px; padding:8px 16px"
+                    onclick="callApi('${scenario}', '${token}')">
+                ▶ Esegui chiamata API protetta
+            </button>
+            <div id="${scenario}-api-result" class="api-result"></div>
+        </div>`;
+}
+
+async function callApi(scenario, token) {
+    const resultEl = document.getElementById(`${scenario}-api-result`);
+    resultEl.innerHTML = '<span style="color:#8b949e; font-size:13px">⏳ Chiamata in corso...</span>';
+
+    try {
+        const res = await fetch(`${BASE_URL}/api/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const statusClass = res.ok ? 'http-200' : 'http-401';
+        const statusLabel = res.ok ? '✅ 200 OK — Token valido' : `❌ ${res.status} — Token non valido`;
+
+        let body;
+        try { body = await res.json(); } catch { body = { error: 'risposta non JSON' }; }
+
+        let claimsHtml = '';
+        if (res.ok && body.claims) {
+            const rows = body.claims.map(c =>
+                `<tr><td>${c.type}</td><td>${c.value}</td></tr>`
+            ).join('');
+            claimsHtml = `
+                <div style="margin-top:14px">
+                    <div style="font-size:11px; color:#8b949e; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px">Claims visti dal server</div>
+                    <table class="claims-table">
+                        <thead><tr><th>Tipo</th><th>Valore</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        }
+
+        resultEl.innerHTML = `
+            <div class="api-result-header">
+                <span class="http-status ${statusClass}">${statusLabel}</span>
+            </div>
+            <div style="font-family:monospace; font-size:12px; color:#8b949e; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; white-space:pre-wrap">${JSON.stringify(body, null, 2)}</div>
+            ${claimsHtml}`;
+
+    } catch(e) {
+        resultEl.innerHTML = `<span style="color:#f85149">Errore: ${e.message}</span>`;
+    }
 }
 </script>
 </body>
