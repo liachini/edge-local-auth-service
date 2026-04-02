@@ -939,4 +939,12 @@ MIT License - Progetto spike per architettura offline-first OAuth2
 - ✅ Test client integrato (`/test`) con decoder JWT e revoca consent
 - ✅ Cookie sessione persistente (sopravvive alla chiusura del browser)
 
+**DEPLOYMENT WINDOWS: COMPLETO** ✅
+
+- ✅ Publish framework-dependent e self-contained
+- ✅ Windows Service con `install-windows-service.ps1` (parametri `-Port`, `-SeedSampleData`)
+- ✅ Uninstall con `uninstall-windows-service.ps1`
+- ✅ Script copiati automaticamente nella cartella di publish
+- ✅ Flag `SeedSampleData` configurabile (default `true`) — disabilitare su macchine che importano da Keycloak
+
 **PROSSIMO:** Keycloak sync (online mode)
