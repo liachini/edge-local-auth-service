@@ -336,6 +336,45 @@
         <p style="margin-top:10px; font-size:13px; color:#8b949e;">
             Il browser verrà reindirizzato alla login page (solo se il cookie è scaduto), poi al consent screen (solo al primo accesso o dopo revoca), poi tornerà qui con il risultato.
         </p>
+
+        <div class="separator"></div>
+
+        <!-- Pannello refresh token -->
+        <div id="s2-refresh-panel" style="display:none">
+            <div style="font-size:12px; color:#8b949e; text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px;">Refresh Token Disponibile</div>
+            <div class="config-box" style="margin-bottom:14px">
+                <div class="config-item">
+                    <span class="config-key">stato</span>
+                    <span class="config-val" style="color:#56d364">✅ Salvato in localStorage</span>
+                </div>
+                <div class="config-item">
+                    <span class="config-key">token</span>
+                    <span class="config-val highlight" id="s2-rt-preview" style="font-size:11px; word-break:break-all"></span>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px">
+                <button class="btn btn-yellow" onclick="runRefresh()">🔄 Rinnova Access Token</button>
+                <button class="btn" style="background:#21262d; border:1px solid #30363d; color:#8b949e; font-size:13px; padding:9px 16px"
+                        onclick="clearRefreshToken()">🗑 Cancella token salvato</button>
+            </div>
+            <div class="loading" id="s2-loading">⏳ Rinnovo in corso...</div>
+            <div class="response-area" id="s2-response">
+                <div class="response-tabs">
+                    <button class="tab-btn active" onclick="switchTab('s2','raw')">JSON risposta</button>
+                    <button class="tab-btn" onclick="switchTab('s2','access')">Access Token</button>
+                    <button class="tab-btn" onclick="switchTab('s2','api')">🔒 Chiama API</button>
+                </div>
+                <div class="tab-content">
+                    <div class="tab-panel active" id="s2-tab-raw"></div>
+                    <div class="tab-panel" id="s2-tab-access"></div>
+                    <div class="tab-panel" id="s2-tab-api"><div id="s2-api-content"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="s2-no-token-msg" style="font-size:13px; color:#8b949e; display:none; margin-top:4px">
+            Nessun refresh token salvato. Avvia il flow per ottenerne uno.
+        </div>
     </div>
 </div>
 
@@ -486,17 +525,72 @@ async function runScenario3() {
     }
 }
 
+// ── Scenario 2: Refresh Token ─────────────────────────────────
+const RT_KEY = 'mes-fornitore-refresh-token';
+
+function initS2RefreshPanel() {
+    const rt = localStorage.getItem(RT_KEY);
+    document.getElementById('s2-refresh-panel').style.display = rt ? 'block' : 'none';
+    document.getElementById('s2-no-token-msg').style.display  = rt ? 'none'  : 'block';
+    if (rt) document.getElementById('s2-rt-preview').textContent = rt.substring(0, 50) + '...';
+}
+
+function clearRefreshToken() {
+    localStorage.removeItem(RT_KEY);
+    document.getElementById('s2-refresh-panel').style.display = 'none';
+    document.getElementById('s2-no-token-msg').style.display  = 'block';
+}
+
+async function runRefresh() {
+    const rt = localStorage.getItem(RT_KEY);
+    if (!rt) return;
+
+    showLoading('s2', true);
+    try {
+        const res  = await fetch('/test/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ refreshToken: rt })
+        });
+        const data = await res.json();
+        showLoading('s2', false);
+
+        if (res.ok && data.refresh_token) {
+            // rotation: aggiorna il token salvato
+            localStorage.setItem(RT_KEY, data.refresh_token);
+            document.getElementById('s2-rt-preview').textContent = data.refresh_token.substring(0, 50) + '...';
+        }
+
+        if (!res.ok || data.error) {
+            localStorage.removeItem(RT_KEY);
+            document.getElementById('s2-refresh-panel').style.display = 'none';
+            document.getElementById('s2-no-token-msg').style.display  = 'block';
+            document.getElementById('s2-tab-raw').textContent =
+                '❌ Refresh fallito — consent scaduto o token non valido.\n\nRiavvia il flow con "Avvia Authorization Code Flow".\n\n' +
+                JSON.stringify(data, null, 2);
+        } else {
+            document.getElementById('s2-tab-raw').textContent = JSON.stringify(data, null, 2);
+            if (data.access_token) {
+                document.getElementById('s2-tab-access').innerHTML = renderTokenDetail(data.access_token);
+                document.getElementById('s2-api-content').innerHTML = renderApiCallBox('s2', data.access_token);
+            }
+        }
+        document.getElementById('s2-response').classList.add('visible');
+    } catch(e) {
+        showLoading('s2', false);
+        document.getElementById('s2-tab-raw').textContent = 'Errore: ' + e.message;
+        document.getElementById('s2-response').classList.add('visible');
+    }
+}
+
+initS2RefreshPanel();
+
 // ── Tab switching ─────────────────────────────────────────────
 function switchTab(scenario, tab) {
     const container = document.getElementById(`${scenario}-response`);
-    container.querySelectorAll('.tab-btn').forEach((btn, i) => {
-        const tabs = ['raw','access','refresh'];
-        btn.classList.toggle('active', tabs[i] === tab || (tab === 'refresh' && i === 2));
-    });
-    // simpler: match by text
     container.querySelectorAll('.tab-btn').forEach(btn => {
-        const map = { raw: 'JSON risposta', access: 'Access Token', refresh: 'Refresh Token' };
-        btn.classList.toggle('active', btn.textContent.trim() === map[tab]);
+        const onclick = btn.getAttribute('onclick') || '';
+        btn.classList.toggle('active', onclick.includes(`'${tab}'`));
     });
     container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     const panel = document.getElementById(`${scenario}-tab-${tab}`);

@@ -1,0 +1,11 @@
+services:
+  localauth:
+    build: .
+    ports:
+      - "5063:5063"
+    volumes:
+      - localauth-data:/var/lib/localauth
+    restart: unless-stopped
+
+volumes:
+  localauth-data:

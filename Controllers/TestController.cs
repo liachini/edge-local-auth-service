@@ -38,6 +38,26 @@ public class TestController : Controller
         return Redirect("/test");
     }
 
+    [HttpPost("~/test/refresh")]
+    public async Task<IActionResult> Refresh([FromForm] string refreshToken)
+    {
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        using var http = new HttpClient();
+        var tokenResponse = await http.PostAsync(
+            $"{baseUrl}/connect/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"]    = "refresh_token",
+                ["refresh_token"] = refreshToken,
+                ["client_id"]     = "mes-fornitore",
+                ["client_secret"] = "mes-secret-123",
+            }));
+
+        var json = await tokenResponse.Content.ReadAsStringAsync();
+        Response.StatusCode = (int)tokenResponse.StatusCode;
+        return Content(json, "application/json");
+    }
+
     [HttpGet("~/test/callback")]
     public async Task<IActionResult> Callback(
         [FromQuery] string? code,

@@ -161,6 +161,15 @@
             } catch(e) { return null; }
         }
 
+        // Salva refresh token in localStorage (per riuso senza re-login)
+        if (tokenData.refresh_token) {
+            localStorage.setItem('mes-fornitore-refresh-token', tokenData.refresh_token);
+            const badge = document.createElement('div');
+            badge.style.cssText = 'margin-top:10px; font-size:12px; color:#56d364';
+            badge.textContent = '✅ Refresh token salvato — puoi rinnovare il token dalla pagina Test senza rifare il login';
+            document.querySelector('.card-body').appendChild(badge);
+        }
+
         const payload = decodeJwt(accessToken);
         if (payload) {
             const rows = Object.entries(payload).map(([k, v]) => {

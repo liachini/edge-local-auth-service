@@ -632,9 +632,13 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [ ] Status API
 
 ### Deployment 📦
-- [ ] Self-contained publish
-- [ ] Windows Service
-- [ ] Linux systemd
+- [x] Framework-dependent publish Windows
+- [x] Self-contained publish Windows (`--self-contained -r win-x64`)
+- [x] Windows Service (`install-windows-service.ps1` con parametri `-Port` e `-SeedSampleData`)
+- [x] Uninstall script (`uninstall-windows-service.ps1`)
+- [x] Script copiati automaticamente in publish via MSBuild target
+- [x] Flag `SeedSampleData` in `appsettings.json` (default `true`)
+- [ ] Linux Docker / systemd
 - [ ] Cross-platform test
 
 ---

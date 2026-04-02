@@ -5,17 +5,20 @@ using LocalAuthService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseWindowsService();
+
 // Add services
 builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Database SQLite
-var dbPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "LocalAuthService",
-    "auth.db"
-);
+var dataDir = builder.Configuration["DataDirectory"]
+    ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "LocalAuthService"
+    );
+var dbPath = Path.Combine(dataDir, "auth.db");
 
 // Assicura che la directory esista
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
@@ -103,8 +106,9 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
     Console.WriteLine("✅ Database ready!");
     
-    // Seed dati iniziali (se database vuoto)
-    if (!db.Users.Any())
+    // Seed dati iniziali (se database vuoto e SeedSampleData=true)
+    var seedSampleData = app.Configuration.GetValue<bool>("SeedSampleData", true);
+    if (seedSampleData && !db.Users.Any())
     {
         Console.WriteLine("🌱 Seeding initial data...");
         
@@ -161,11 +165,13 @@ using (var scope = app.Services.CreateScope())
 
     // Registra client OAuth in OpenIddict
     var clientManager = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>();
-    
+
+    if (seedSampleData)
+    {
     if (await clientManager.FindByClientIdAsync("hmi-local") == null)
     {
         Console.WriteLine("🔧 Registering OAuth clients in OpenIddict...");
-        
+
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "hmi-local",
@@ -182,7 +188,7 @@ using (var scope = app.Services.CreateScope())
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
             }
         });
-        
+
         Console.WriteLine("✅ OAuth client 'hmi-local' registered");
 
         if (await clientManager.FindByClientIdAsync("mes-fornitore") == null)
@@ -212,10 +218,10 @@ using (var scope = app.Services.CreateScope())
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
             }
         });
-        
+
         Console.WriteLine("✅ OAuth client 'mes-fornitore' registered (confidential)");
     }
-    
+
     // Client #3: Office API (Service Account - Client Credentials M2M)
     if (await clientManager.FindByClientIdAsync("office-api") == null)
     {
@@ -234,9 +240,14 @@ using (var scope = app.Services.CreateScope())
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "api.write"
             }
         });
-        
+
         Console.WriteLine("✅ OAuth client 'office-api' registered (service account)");
     }
+    }
+    }
+    else
+    {
+        Console.WriteLine("⏭️ SeedSampleData=false — skipping sample users and OAuth clients");
     }
 
     // Aggiunge /test/callback a mes-fornitore (se mancante)
@@ -281,7 +292,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 app.UseAuthentication(); 
 app.UseAuthorization();
 app.MapControllers();

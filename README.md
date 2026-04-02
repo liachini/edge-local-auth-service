@@ -768,7 +768,57 @@ using (var scope = app.Services.CreateScope())
 
 ---
 
-## 🚀 Avvio Applicazione
+## 📦 Deploy Windows
+
+### Publish
+
+```powershell
+# Framework-dependent (richiede .NET 10 runtime sulla macchina target)
+dotnet publish LocalAuthService.csproj -c Release -o publish\win-x64
+
+# Self-contained (nessuna dipendenza, ~150MB)
+dotnet publish LocalAuthService.csproj -c Release -o publish\win-x64 -r win-x64 --self-contained
+```
+
+Gli script `install-windows-service.ps1` e `uninstall-windows-service.ps1` vengono copiati automaticamente nella cartella di output.
+
+### Installazione come Windows Service
+
+Copia la cartella `publish\win-x64` sulla macchina target, poi esegui PowerShell come **Amministratore**:
+
+```powershell
+# Default (porta 5063, seed dati di esempio attivo)
+.\install-windows-service.ps1
+
+# Porta custom
+.\install-windows-service.ps1 -Port 8080
+
+# Senza seed (macchina che importa dati da Keycloak)
+.\install-windows-service.ps1 -SeedSampleData $false
+
+# Porta custom e senza seed
+.\install-windows-service.ps1 -Port 8080 -SeedSampleData $false
+```
+
+Il servizio si avvia automaticamente e riparte ad ogni reboot.
+
+### Disinstallazione
+
+```powershell
+.\uninstall-windows-service.ps1
+```
+
+### Posizione database
+
+| Contesto | Path |
+|---|---|
+| Eseguito manualmente (utente `pippo`) | `C:\Users\pippo\AppData\Local\LocalAuthService\auth.db` |
+| Windows Service (SYSTEM) | `C:\Windows\system32\config\systemprofile\AppData\Local\LocalAuthService\auth.db` |
+| Override via config | `appsettings.json` → `"DataDirectory": "C:\\ProgramData\\LocalAuthService"` |
+
+---
+
+## 🚀 Avvio in Sviluppo
 
 ```powershell
 dotnet run
