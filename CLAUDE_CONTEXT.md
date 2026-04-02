@@ -638,8 +638,8 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [x] Uninstall script (`uninstall-windows-service.ps1`)
 - [x] Script copiati automaticamente in publish via MSBuild target
 - [x] Flag `SeedSampleData` in `appsettings.json` (default `true`)
-- [ ] Linux Docker / systemd
-- [ ] Cross-platform test
+- [x] Linux Docker (container `localauth`, porta 5063, volume persistente `/var/lib/localauth`)
+- [x] Cross-platform test
 
 ---
 

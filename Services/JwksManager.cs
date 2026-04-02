@@ -9,15 +9,10 @@ public class JwksManager
     private readonly string _jwksPath;
     private RsaSecurityKey? _cachedKey;
 
-    public JwksManager()
+    public JwksManager(string dataDir)
     {
-        var appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LocalAuthService"
-        );
-        
-        Directory.CreateDirectory(appDataPath);
-        _jwksPath = Path.Combine(appDataPath, "jwks.json");
+        Directory.CreateDirectory(dataDir);
+        _jwksPath = Path.Combine(dataDir, "jwks.json");
     }
 
     public RsaSecurityKey GetOrCreateKey()

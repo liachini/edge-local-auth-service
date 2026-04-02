@@ -14,6 +14,7 @@ builder.Services.AddSwaggerGen();
 
 // Database SQLite
 var dataDir = builder.Configuration["DataDirectory"]
+    ?? Environment.GetEnvironmentVariable("DataDirectory")
     ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LocalAuthService"
@@ -63,7 +64,7 @@ builder.Services.AddOpenIddict()
             .AllowRefreshTokenFlow();
 
         // JWKS locale — istanziato direttamente perché non ha dipendenze da DI
-        var signingKey = new JwksManager().GetOrCreateKey();
+        var signingKey = new JwksManager(dataDir).GetOrCreateKey();
         options.AddSigningKey(signingKey);
 
         // Development encryption

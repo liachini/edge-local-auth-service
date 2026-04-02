@@ -1,10 +1,14 @@
 services:
   localauth:
     build: .
+    container_name: localauth
     ports:
       - "5063:5063"
     volumes:
       - localauth-data:/var/lib/localauth
+    environment:
+      - SeedSampleData=false
+      - DataDirectory=/var/lib/localauth
     restart: unless-stopped
 
 volumes:

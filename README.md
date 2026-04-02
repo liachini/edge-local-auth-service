@@ -947,4 +947,11 @@ MIT License - Progetto spike per architettura offline-first OAuth2
 - ✅ Script copiati automaticamente nella cartella di publish
 - ✅ Flag `SeedSampleData` configurabile (default `true`) — disabilitare su macchine che importano da Keycloak
 
+**DEPLOYMENT LINUX (Docker): COMPLETO** ✅
+
+- ✅ Container `localauth` su porta 5063
+- ✅ Volume persistente `/var/lib/localauth` (database + JWKS + cert store)
+- ✅ Flag `SeedSampleData` configurabile via `docker-compose.yml`
+- ✅ Raggiungibile da altre macchine in rete
+
 **PROSSIMO:** Keycloak sync (online mode)
