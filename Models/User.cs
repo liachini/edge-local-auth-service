@@ -16,6 +16,8 @@ public class User
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public bool CreatedLocally { get; set; } = true;
     
+    public bool HasLocalPassword { get; set; } = true;
+
     public string? KeycloakUserId { get; set; }
     public DateTime? LastSyncToKeycloak { get; set; }
     public DateTime? LastSyncFromKeycloak { get; set; }

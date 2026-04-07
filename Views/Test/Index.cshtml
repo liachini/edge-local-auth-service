@@ -96,6 +96,7 @@
             font-size: 14px;
         }
         .form-group input:focus { border-color: #388bfd; outline: none; }
+        .form-group select { width: 100%; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e1e4e8; font-size: 13px; }
         .form-group.full { flex: 100%; min-width: 100%; }
 
         /* Config box */
@@ -252,12 +253,16 @@
 
         <div class="form-row">
             <div class="form-group">
+                <label>Client</label>
+                <select id="s1-client"></select>
+            </div>
+            <div class="form-group">
                 <label>Username</label>
-                <input id="s1-username" type="text" value="admin" />
+                <input id="s1-username" type="text" value="" />
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <input id="s1-password" type="text" value="admin123" />
+                <input id="s1-password" type="text" value="" />
             </div>
             <div class="form-group full">
                 <label>Scope</label>
@@ -312,23 +317,25 @@
 
         <div class="config-box">
             <div class="config-title">Configurazione client</div>
-            <div class="config-item"><span class="config-key">client_id</span><span class="config-val">mes-fornitore</span></div>
-            <div class="config-item"><span class="config-key">client_secret</span><span class="config-val">mes-secret-123</span></div>
+            <div class="config-item">
+                <span class="config-key">client_id</span>
+                <select id="s2-client" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e1e4e8;padding:2px 6px;"></select>
+            </div>
+            <div class="config-item">
+                <span class="config-key">client_secret</span>
+                <input id="s2-secret" type="text" placeholder="(opzionale)" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e1e4e8;padding:2px 6px;width:200px;" />
+            </div>
             <div class="config-item"><span class="config-key">redirect_uri</span><span class="config-val highlight">@ViewBag.BaseUrl/test/callback</span></div>
             <div class="config-item"><span class="config-key">scope</span><span class="config-val">openid profile email offline_access</span></div>
-            <div class="config-item"><span class="config-key">consent</span><span class="config-val">Explicit (richiesto alla prima visita)</span></div>
         </div>
 
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <a class="btn btn-yellow"
-               href="@ViewBag.BaseUrl/connect/authorize?client_id=mes-fornitore&redirect_uri=@Uri.EscapeDataString(ViewBag.BaseUrl + "/test/callback")&response_type=code&scope=openid%20profile%20email%20offline_access">
-                ▶ Avvia Authorization Code Flow
-            </a>
+            <button class="btn btn-yellow" onclick="startScenario2()">▶ Avvia Authorization Code Flow</button>
             <form method="post" action="/test/revoke-consent" style="margin:0">
                 @Html.AntiForgeryToken()
-                <input type="hidden" name="clientId" value="mes-fornitore" />
+                <input type="hidden" id="s2-revoke-client" name="clientId" value="" />
                 <button type="submit" class="btn" style="background:#21262d; border:1px solid #f85149; color:#f85149; font-size:13px; padding:9px 16px;"
-                        onclick="return confirm('Revocare il consent salvato per mes-fornitore? Il flow mostrerà di nuovo la schermata di consenso.')">
+                        onclick="document.getElementById('s2-revoke-client').value=document.getElementById('s2-client').value; return confirm('Revocare il consent salvato?')">
                     🗑 Revoca consent
                 </button>
             </form>
@@ -401,10 +408,18 @@
 
         <div class="config-box">
             <div class="config-title">Configurazione client</div>
-            <div class="config-item"><span class="config-key">client_id</span><span class="config-val">office-api</span></div>
-            <div class="config-item"><span class="config-key">client_secret</span><span class="config-val">office-secret-456</span></div>
-            <div class="config-item"><span class="config-key">scope</span><span class="config-val">openid api.read api.write</span></div>
-            <div class="config-item"><span class="config-key">refresh_token</span><span class="config-val" style="color:#f85149">Non disponibile (no utente)</span></div>
+            <div class="config-item">
+                <span class="config-key">client_id</span>
+                <select id="s3-client" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e1e4e8;padding:2px 6px;"></select>
+            </div>
+            <div class="config-item">
+                <span class="config-key">client_secret</span>
+                <input id="s3-secret" type="text" placeholder="client secret" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e1e4e8;padding:2px 6px;width:200px;" />
+            </div>
+            <div class="config-item">
+                <span class="config-key">scope</span>
+                <input id="s3-scope" type="text" value="openid" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e1e4e8;padding:2px 6px;width:200px;" />
+            </div>
         </div>
 
         <button class="btn btn-green" onclick="runScenario3()">▶ Esegui Client Credentials</button>
@@ -428,18 +443,59 @@
 <script>
 const BASE_URL = '@ViewBag.BaseUrl';
 
+// ── Carica client disponibili ─────────────────────────────────
+async function loadClients() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/clients`);
+        const clients = await res.json();
+
+        const fill = (id, grantType) => {
+            const sel = document.getElementById(id);
+            const filtered = clients.filter(c => c.grantTypes.includes(grantType));
+            sel.innerHTML = filtered.map(c =>
+                `<option value="${c.clientId}">${c.displayName || c.clientId}</option>`
+            ).join('') || '<option value="">— nessun client disponibile —</option>';
+        };
+
+        fill('s1-client', 'password');
+        fill('s2-client', 'authorization_code');
+        fill('s3-client', 'client_credentials');
+    } catch (e) {
+        console.warn('Failed to load clients', e);
+    }
+}
+loadClients().then(() => initS2RefreshPanel());
+
+async function startScenario2() {
+    const clientId = document.getElementById('s2-client').value;
+    const secret   = document.getElementById('s2-secret').value;
+
+    // Salva le credenziali server-side e ottieni uno state token
+    const res = await fetch(`${BASE_URL}/test/save-client-state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, secret })
+    });
+    const { state } = await res.json();
+
+    const redirect = encodeURIComponent(`${BASE_URL}/test/callback`);
+    const url = `${BASE_URL}/connect/authorize?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=openid%20profile%20email%20offline_access&state=${encodeURIComponent(state)}`;
+    window.location.href = url;
+}
+
 // ── Scenario 1 ───────────────────────────────────────────────
 async function runScenario1() {
-    const username = document.getElementById('s1-username').value;
-    const password = document.getElementById('s1-password').value;
-    const scope    = document.getElementById('s1-scope').value;
+    const username  = document.getElementById('s1-username').value;
+    const password  = document.getElementById('s1-password').value;
+    const scope     = document.getElementById('s1-scope').value;
+    const client_id = document.getElementById('s1-client').value;
 
     setFlow1Step('request');
     showLoading('s1', true);
 
     const params = new URLSearchParams({
         grant_type: 'password', username, password,
-        client_id: 'hmi-local', scope
+        client_id, scope
     });
 
     try {
@@ -499,9 +555,9 @@ async function runScenario3() {
 
     const params = new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: 'office-api',
-        client_secret: 'office-secret-456',
-        scope: 'openid api.read api.write'
+        client_id: document.getElementById('s3-client').value,
+        client_secret: document.getElementById('s3-secret').value,
+        scope: document.getElementById('s3-scope').value
     });
 
     try {
@@ -526,43 +582,58 @@ async function runScenario3() {
 }
 
 // ── Scenario 2: Refresh Token ─────────────────────────────────
-const RT_KEY = 'mes-fornitore-refresh-token';
+function getRtKey() {
+    return 's2-refresh-token-' + (document.getElementById('s2-client')?.value || 'default');
+}
 
 function initS2RefreshPanel() {
-    const rt = localStorage.getItem(RT_KEY);
+    // Auto-seleziona il client che ha un refresh token salvato
+    const sel = document.getElementById('s2-client');
+    if (sel) {
+        for (const opt of sel.options) {
+            if (opt.value && localStorage.getItem('s2-refresh-token-' + opt.value)) {
+                sel.value = opt.value;
+                break;
+            }
+        }
+    }
+    const rt = localStorage.getItem(getRtKey());
     document.getElementById('s2-refresh-panel').style.display = rt ? 'block' : 'none';
     document.getElementById('s2-no-token-msg').style.display  = rt ? 'none'  : 'block';
     if (rt) document.getElementById('s2-rt-preview').textContent = rt.substring(0, 50) + '...';
 }
 
 function clearRefreshToken() {
-    localStorage.removeItem(RT_KEY);
+    localStorage.removeItem(getRtKey());
     document.getElementById('s2-refresh-panel').style.display = 'none';
     document.getElementById('s2-no-token-msg').style.display  = 'block';
 }
 
 async function runRefresh() {
-    const rt = localStorage.getItem(RT_KEY);
+    const rt = localStorage.getItem(getRtKey());
     if (!rt) return;
+
+    const clientId     = document.getElementById('s2-client').value;
+    const clientSecret = document.getElementById('s2-secret').value;
 
     showLoading('s2', true);
     try {
         const res  = await fetch('/test/refresh', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ refreshToken: rt })
+            body: new URLSearchParams({ refreshToken: rt, clientId, clientSecret })
         });
         const data = await res.json();
         showLoading('s2', false);
 
         if (res.ok && data.refresh_token) {
             // rotation: aggiorna il token salvato
-            localStorage.setItem(RT_KEY, data.refresh_token);
+            localStorage.setItem(getRtKey(), data.refresh_token);
             document.getElementById('s2-rt-preview').textContent = data.refresh_token.substring(0, 50) + '...';
         }
 
         if (!res.ok || data.error) {
-            localStorage.removeItem(RT_KEY);
+            localStorage.removeItem(getRtKey());
             document.getElementById('s2-refresh-panel').style.display = 'none';
             document.getElementById('s2-no-token-msg').style.display  = 'block';
             document.getElementById('s2-tab-raw').textContent =
@@ -583,7 +654,7 @@ async function runRefresh() {
     }
 }
 
-initS2RefreshPanel();
+// initS2RefreshPanel viene chiamato dopo loadClients()
 
 // ── Tab switching ─────────────────────────────────────────────
 function switchTab(scenario, tab) {

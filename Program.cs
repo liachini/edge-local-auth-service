@@ -31,7 +31,13 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 });
 
 // JWKS Manager (chiave locale)
-builder.Services.AddSingleton<JwksManager>();
+builder.Services.AddSingleton(new JwksManager(dataDir));
+
+// Keycloak sync
+builder.Services.AddSingleton<OperatingModeDetector>();
+builder.Services.AddSingleton<KeycloakAuthService>();
+builder.Services.AddSingleton<KeycloakSyncService>();
+builder.Services.AddHostedService<SyncBackgroundService>();
 
 // OpenIddict OAuth2 Server
 builder.Services.AddOpenIddict()

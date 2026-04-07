@@ -3,16 +3,24 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using LocalAuthService.Data;
+using LocalAuthService.Models;
+using LocalAuthService.Services;
 
 namespace LocalAuthService.Controllers;
 
 public class AccountController : Controller
 {
     private readonly AuthDbContext _db;
+    private readonly OperatingModeDetector _modeDetector;
+    private readonly KeycloakAuthService _keycloakAuth;
+    private readonly ILogger<AccountController> _logger;
 
-    public AccountController(AuthDbContext db)
+    public AccountController(AuthDbContext db, OperatingModeDetector modeDetector, KeycloakAuthService keycloakAuth, ILogger<AccountController> logger)
     {
         _db = db;
+        _modeDetector = modeDetector;
+        _keycloakAuth = keycloakAuth;
+        _logger = logger;
     }
 
     [HttpGet("~/account/login")]
@@ -28,15 +36,110 @@ public class AccountController : Controller
         if (!ModelState.IsValid)
             return View(model);
 
-        var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Username == model.Username);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == model.Username);
 
-        if (user == null || !user.Enabled || !BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
+        _logger.LogInformation("LOGIN START for {Username}", model.Username);
+        await _modeDetector.CheckAsync();
+        _logger.LogInformation("Login attempt for {Username} — Keycloak online: {Online}", model.Username, _modeDetector.IsOnline);
+
+        if (_modeDetector.IsOnline)
+        {
+            // Online: Keycloak è autoritativo
+            var loginClientId = _keycloakAuth.GetLoginClientId();
+            var keycloakOk = await _keycloakAuth.ValidateCredentialsAsync(model.Username!, model.Password!, loginClientId);
+            _logger.LogInformation("Keycloak validation for {Username}: {Result}", model.Username, keycloakOk);
+
+            if (!keycloakOk)
+            {
+                ModelState.AddModelError("", "Username o password non validi.");
+                return View(model);
+            }
+
+            if (user == null)
+            {
+                user = new Models.User
+                {
+                    Username = model.Username!,
+                    PasswordHash = "",
+                    HasLocalPassword = false,
+                    CreatedLocally = false
+                };
+                _db.Users.Add(user);
+                await _db.SaveChangesAsync();
+            }
+
+            await SignInUser(user);
+            return RedirectToReturnUrl(model.ReturnUrl);
+        }
+
+        // Offline: fallback locale
+        if (user == null || !user.Enabled)
         {
             ModelState.AddModelError("", "Username o password non validi.");
             return View(model);
         }
 
+        if (!user.HasLocalPassword)
+        {
+            ModelState.AddModelError("", "Devi fare almeno un login online prima di poter accedere offline.");
+            return View(model);
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
+        {
+            ModelState.AddModelError("", "Username o password non validi.");
+            return View(model);
+        }
+
+        await SignInUser(user);
+        return RedirectToReturnUrl(model.ReturnUrl);
+    }
+
+    [HttpGet("~/account/set-local-password")]
+    public IActionResult SetLocalPassword([FromQuery] string? returnUrl)
+    {
+        return View(new SetLocalPasswordViewModel { ReturnUrl = returnUrl });
+    }
+
+    [HttpPost("~/account/set-local-password")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetLocalPassword(SetLocalPasswordViewModel model)
+    {
+        if (!ModelState.IsValid)
+            return View(model);
+
+        if (model.Password != model.ConfirmPassword)
+        {
+            ModelState.AddModelError("", "Le password non coincidono.");
+            return View(model);
+        }
+
+        // Legge l'utente dal cookie di sessione corrente
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            return Redirect("/account/login");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
+        user.HasLocalPassword = true;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        Console.WriteLine($"✅ Local password set for user '{user.Username}'");
+
+        return RedirectToReturnUrl(model.ReturnUrl);
+    }
+
+    [HttpPost("~/account/logout")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Logout()
+    {
+        await HttpContext.SignOutAsync("LocalAuth");
+        return Redirect("/account/login");
+    }
+
+    private async Task SignInUser(Models.User user)
+    {
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
@@ -48,29 +151,24 @@ public class AccountController : Controller
 
         await HttpContext.SignInAsync("LocalAuth", principal, new AuthenticationProperties
         {
-            IsPersistent = true  // Cookie sopravvive alla chiusura del browser (scade dopo 8h)
+            IsPersistent = true
         });
 
-        Console.WriteLine($"✅ User '{user.Username}' logged in via cookie");
-
-        if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
-            return Redirect(model.ReturnUrl);
-
-        return Redirect("/");
+        Console.WriteLine($"✅ User '{user.Username}' logged in");
     }
 
-    [HttpPost("~/account/logout")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Logout()
+    private IActionResult RedirectToReturnUrl(string? returnUrl)
     {
-        await HttpContext.SignOutAsync("LocalAuth");
-        return Redirect("/account/login");
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            return Redirect(returnUrl);
+        return Redirect("/");
     }
 }
 
 public class LoginViewModel
 {
-    public string Username { get; set; } = "";
-    public string Password { get; set; } = "";
+    public string? Username { get; set; }
+    public string? Password { get; set; }
     public string? ReturnUrl { get; set; }
 }
+

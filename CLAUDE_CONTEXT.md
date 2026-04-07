@@ -1,6 +1,6 @@
 # LocalAuthService - Context File per Claude in VS Code
 
-**Ultimo aggiornamento:** 2026-04-02
+**Ultimo aggiornamento:** 2026-04-07
 
 Questo file contiene il contesto completo del progetto per permettere a Claude (in VS Code o altri IDE) di capire immediatamente lo stato attuale e i prossimi passi.
 
@@ -92,14 +92,14 @@ Questo file contiene il contesto completo del progetto per permettere a Claude (
 │  - Consent.cshtml (consent screen)     │
 └─────────────────────────────────────────┘
             │
-            │ (NON ANCORA IMPLEMENTATO)
+            │ (ONLINE MODE ✅ FUNZIONANTE)
             ↓
 ┌─────────────────────────────────────────┐
 │  Keycloak (Cloud/Office)                │
 │  - Realm: falegnameria-rossi            │
-│  - Users: m.ferrari, g.bianchi          │
-│  - Clients: hmi-foratrice, mes-forn...  │
-│  - Sync bidirezionale (TODO)            │
+│  - Auth: valida credenziali via ROPC    │
+│  - Sync: utenti scaricati in locale     │
+│  - Fallback: locale se Keycloak offline │
 └─────────────────────────────────────────┘
 ```
 
@@ -593,7 +593,7 @@ dotnet publish -c Release -r win-x64 --self-contained
 **Sistema di autenticazione ibrido offline-first per macchine industriali:**
 
 - ✅ **Offline mode** - Sempre funzionante anche senza rete (COMPLETO)
-- 🔄 **Online mode** - Sync automatica con Keycloak quando disponibile (TODO)
+- ✅ **Online mode** - Keycloak autoritativo quando disponibile, fallback locale offline (COMPLETO)
 - 🔐 **3 scenari OAuth2** - Password, Authorization Code, Client Credentials (COMPLETO)
 - 🔑 **JWKS locale** - Firma token in autonomia (COMPLETO)
 - 💾 **SQLite embedded** - Zero dipendenze server (COMPLETO)
@@ -623,11 +623,14 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [x] Fix DbUpdateConcurrencyException (IServiceScopeFactory nel background task)
 - [x] Token signing locale
 
-### Online Mode (Next) 🔄
-- [ ] Operating Mode Detector
-- [ ] Keycloak Sync Service
-- [ ] Background Sync Worker
-- [ ] Hybrid Token Endpoint
+### Online Mode ✅ (completato 2026-04-07)
+- [x] Operating Mode Detector (`Services/OperatingModeDetector.cs`) — ping Keycloak health
+- [x] Keycloak Auth Service (`Services/KeycloakAuthService.cs`) — valida credenziali su Keycloak via token endpoint
+- [x] Keycloak Sync Service (`Services/KeycloakSyncService.cs`) — sync utenti da Keycloak a locale
+- [x] Background Sync Worker (`Services/SyncBackgroundService.cs`) — sync ogni 15 min quando online
+- [x] Hybrid Login (`AccountController` + `TokenController`) — Keycloak autoritativo se online, locale come fallback
+- [x] HasLocalPassword field (`Models/User.cs`, migration `20260407081721_AddHasLocalPassword`)
+- [x] SetLocalPassword flow (`Views/Account/SetLocalPassword.cshtml`) — imposta password locale dopo primo login online
 - [ ] Admin UI
 - [ ] Status API
 
@@ -643,4 +646,4 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ---
 
-**Ultimo test funzionante:** 2026-04-02 - Tutti e 3 gli scenari OAuth2 + refresh token + consent con scadenza + test client `/test` + validazione token su `/api/me` ✅
+**Ultimo test funzionante:** 2026-04-07 - Online mode con Keycloak funzionante ✅ — login ibrido (Keycloak se online, locale se offline), sync utenti, HasLocalPassword, SetLocalPassword flow. Tutti e 3 gli scenari OAuth2 + refresh token + consent + test client `/test` confermati funzionanti.

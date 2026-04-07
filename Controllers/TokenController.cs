@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using LocalAuthService.Data;
+using LocalAuthService.Services;
 using System.Security.Claims;
 using System.Text.Json;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -15,10 +16,16 @@ namespace LocalAuthService.Controllers;
 public class TokenController : ControllerBase
 {
     private readonly AuthDbContext _db;
+    private readonly OperatingModeDetector _modeDetector;
+    private readonly KeycloakAuthService _keycloakAuth;
+    private readonly ILogger<TokenController> _logger;
 
-    public TokenController(AuthDbContext db)
+    public TokenController(AuthDbContext db, OperatingModeDetector modeDetector, KeycloakAuthService keycloakAuth, ILogger<TokenController> logger)
     {
         _db = db;
+        _modeDetector = modeDetector;
+        _keycloakAuth = keycloakAuth;
+        _logger = logger;
     }
 
     [HttpPost("~/connect/token")]
@@ -57,36 +64,54 @@ public class TokenController : ControllerBase
 
     private async Task<IActionResult> HandlePasswordGrant(OpenIddictRequest request)
     {
-        // Trova utente
-        var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
 
+        await _modeDetector.CheckAsync();
+        _logger.LogWarning("PASSWORD GRANT for {Username} - Keycloak online: {Online}", request.Username, _modeDetector.IsOnline);
+
+        if (_modeDetector.IsOnline)
+        {
+            // Online: Keycloak e autoritativo
+            var loginClientId = _keycloakAuth.GetLoginClientId();
+            _logger.LogWarning("Validating with Keycloak clientId: {ClientId}", loginClientId);
+            var keycloakOk = await _keycloakAuth.ValidateCredentialsAsync(request.Username!, request.Password!, loginClientId);
+            _logger.LogWarning("Keycloak result for {Username}: {Result}", request.Username, keycloakOk);
+            if (!keycloakOk)
+                return InvalidGrant("Invalid username or password.");
+
+            if (user == null)
+            {
+                user = new Models.User
+                {
+                    Username = request.Username!,
+                    PasswordHash = "",
+                    HasLocalPassword = false,
+                    CreatedLocally = false
+                };
+                _db.Users.Add(user);
+                await _db.SaveChangesAsync();
+            }
+            Console.WriteLine($"✅ Password grant (Keycloak): {user.Username}");
+            return BuildTokenResult(user, request);
+        }
+
+        // Offline: fallback locale
         if (user == null || !user.Enabled)
-        {
-            return Forbid(
-                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                properties: new Microsoft.AspNetCore.Authentication.AuthenticationProperties(new Dictionary<string, string?>
-                {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
-                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "Invalid username or password."
-                }));
-        }
+            return InvalidGrant("Invalid username or password.");
 
-        // Verifica password
+        if (!user.HasLocalPassword)
+            return InvalidGrant("No local password set. Please login online first.");
+
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            return Forbid(
-                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                properties: new Microsoft.AspNetCore.Authentication.AuthenticationProperties(new Dictionary<string, string?>
-                {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
-                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "Invalid username or password."
-                }));
-        }
+            return InvalidGrant("Invalid username or password.");
 
-        // Crea claims
-        var identity = new ClaimsIdentity(
-            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        Console.WriteLine($"✅ Password grant (local): {user.Username}");
+        return BuildTokenResult(user, request);
+    }
+
+    private IActionResult BuildTokenResult(Models.User user, OpenIddictRequest request)
+    {
+        var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
         identity.AddClaim(Claims.Subject, user.Id);
         identity.AddClaim(Claims.Name, user.Username);
@@ -104,34 +129,30 @@ public class TokenController : ControllerBase
         if (!string.IsNullOrEmpty(user.LastName))
             identity.AddClaim(Claims.FamilyName, user.LastName);
 
-        // Aggiungi ruoli
         if (!string.IsNullOrEmpty(user.Roles))
         {
             var roles = JsonSerializer.Deserialize<string[]>(user.Roles);
             if (roles != null)
-            {
                 foreach (var role in roles)
-                {
                     identity.AddClaim(Claims.Role, role);
-                }
-            }
         }
 
         var principal = new ClaimsPrincipal(identity);
-
-        // Usa gli scopes richiesti dal client (già validati da OpenIddict)
-        // Necessario per emettere refresh_token quando viene richiesto offline_access
         principal.SetScopes(request.GetScopes());
 
         foreach (var claim in principal.Claims)
-        {
             claim.SetDestinations(GetDestinations(claim));
-        }
-
-        Console.WriteLine($"✅ Password grant: {user.Username} authenticated");
 
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
+
+    private IActionResult InvalidGrant(string description) => Forbid(
+        authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+        properties: new AuthenticationProperties(new Dictionary<string, string?>
+        {
+            [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
+            [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = description
+        }));
 
     private Task<IActionResult> HandleClientCredentialsGrant(OpenIddictRequest request)
     {
