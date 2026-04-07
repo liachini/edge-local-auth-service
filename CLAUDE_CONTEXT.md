@@ -466,6 +466,18 @@ private async Task<IActionResult> HandlePasswordGrant(OpenIddictRequest request)
 
 ---
 
+### Phase 1.5 - Gestione Password Locale (TODO)
+
+> **Comportamento attuale (2026-04-07):** al primo login online riuscito (Keycloak), la password viene hashata e salvata in locale automaticamente in `AccountController` e `TokenController`. Questo copre tutti e 3 gli scenari OAuth2.
+
+Aspetti ancora da gestire:
+
+- [ ] **Sincronizzazione cambio password** — se l'utente cambia la password su Keycloak, la password locale rimane quella del primo login. Fix: rimuovere la condizione `!user.HasLocalPassword` e aggiornare sempre l'hash ad ogni login online riuscito
+- [ ] **Scadenza password locale** — aggiungere `LocalPasswordChangedAt` su `User` (+ migration) e `LocalPasswordExpiryDays` in `appsettings.json` (0 = mai). Offline, se scaduta: messaggio "password scaduta, effettuare login online"
+- [ ] **Reset password offline da admin** — endpoint admin per resettare la password locale di un utente
+
+---
+
 ### Phase 2 - Admin UI (~1 ora)
 
 - [ ] Endpoint `GET /api/status/mode` → JSON con `{ isOnline, keycloakUrl, lastSync }`

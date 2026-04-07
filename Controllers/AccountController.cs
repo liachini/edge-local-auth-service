@@ -65,9 +65,18 @@ public class AccountController : Controller
                     CreatedLocally = false
                 };
                 _db.Users.Add(user);
-                await _db.SaveChangesAsync();
             }
 
+            // Al primo login online salviamo subito la password locale per abilitare l'accesso offline
+            if (!user.HasLocalPassword)
+            {
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
+                user.HasLocalPassword = true;
+                user.UpdatedAt = DateTime.UtcNow;
+                _logger.LogInformation("Local password set for '{Username}' after first online login", model.Username);
+            }
+
+            await _db.SaveChangesAsync();
             await SignInUser(user);
             return RedirectToReturnUrl(model.ReturnUrl);
         }
@@ -81,7 +90,7 @@ public class AccountController : Controller
 
         if (!user.HasLocalPassword)
         {
-            ModelState.AddModelError("", "Devi fare almeno un login online prima di poter accedere offline.");
+            ModelState.AddModelError("", "Nessuna password locale impostata. Effettua almeno un login quando la connessione è disponibile.");
             return View(model);
         }
 

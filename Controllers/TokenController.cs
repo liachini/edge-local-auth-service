@@ -89,8 +89,18 @@ public class TokenController : ControllerBase
                     CreatedLocally = false
                 };
                 _db.Users.Add(user);
-                await _db.SaveChangesAsync();
             }
+
+            // Al primo login online salviamo subito la password locale per abilitare l'accesso offline
+            if (!user.HasLocalPassword)
+            {
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+                user.HasLocalPassword = true;
+                user.UpdatedAt = DateTime.UtcNow;
+                _logger.LogInformation("Local password set for '{Username}' after first online login (password grant)", request.Username);
+            }
+
+            await _db.SaveChangesAsync();
             Console.WriteLine($"✅ Password grant (Keycloak): {user.Username}");
             return BuildTokenResult(user, request);
         }

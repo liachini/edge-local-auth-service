@@ -893,7 +893,17 @@ Now listening on: http://localhost:5063
 - [ ] Cross-platform testing
 - [ ] Production hardening (HTTPS, secrets management)
 
-### Phase 4: Security
+### Phase 4: Gestione Password Locale
+
+> **Comportamento attuale:** al primo login online riuscito (Keycloak), la password viene hashata e salvata in locale automaticamente. Questo permette all'utente di accedere offline in seguito.
+
+Aspetti da gestire:
+
+- [ ] **Sincronizzazione cambio password** — se l'utente cambia la password su Keycloak, la password locale non viene aggiornata (rimane quella del primo login). Soluzione: aggiornare sempre l'hash locale ad ogni login online riuscito
+- [ ] **Scadenza password locale** — aggiungere campo `LocalPasswordChangedAt` su `User` e policy `LocalPasswordExpiryDays` in `appsettings.json` (0 = mai). Offline, se la password è scaduta, mostrare messaggio "password scaduta, effettuare login online"
+- [ ] **Reset password offline** — admin può resettare la password locale di un utente via endpoint admin
+
+### Phase 5: Security Hardening
 
 - [ ] Abilitare HTTPS in produzione
 - [ ] Secrets in environment variables
