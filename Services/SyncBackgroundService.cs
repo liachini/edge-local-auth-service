@@ -33,9 +33,12 @@ public class SyncBackgroundService : BackgroundService
                 _logger.LogInformation("Keycloak ONLINE — starting sync");
                 try
                 {
-                    await _syncService.SyncClientsFromKeycloakAsync();
-                    await _syncService.SyncFromKeycloakAsync();
-                    await _syncService.SyncToKeycloakAsync();
+                    await _syncService.EnsureRealmExistsAsync();
+                    await _syncService.SyncRolesToKeycloakAsync();       // ruoli prima degli utenti
+                    await _syncService.SyncClientsToKeycloakAsync();     // client locali → Keycloak
+                    await _syncService.SyncClientsFromKeycloakAsync();   // client Keycloak → locale
+                    await _syncService.SyncFromKeycloakAsync();          // utenti Keycloak → locale
+                    await _syncService.SyncToKeycloakAsync();            // utenti locali → Keycloak (con ruoli)
                     _logger.LogInformation("Sync completed successfully");
                 }
                 catch (Exception ex)

@@ -74,10 +74,34 @@ public class TokenController : ControllerBase
             // Online: Keycloak e autoritativo
             var loginClientId = _keycloakAuth.GetLoginClientId();
             _logger.LogWarning("Validating with Keycloak clientId: {ClientId}", loginClientId);
-            var keycloakOk = await _keycloakAuth.ValidateCredentialsAsync(request.Username!, request.Password!, loginClientId);
-            _logger.LogWarning("Keycloak result for {Username}: {Result}", request.Username, keycloakOk);
-            if (!keycloakOk)
+            var keycloakResult = await _keycloakAuth.ValidateCredentialsAsync(request.Username!, request.Password!, loginClientId);
+            _logger.LogWarning("Keycloak result for {Username}: {Result}", request.Username, keycloakResult);
+
+            if (keycloakResult == KeycloakAuthResult.InvalidCredentials)
+            {
+                // Fallback locale per utenti creati localmente e sincronizzati con password temporanea su Keycloak
+                if (user != null && user.HasLocalPassword && BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                {
+                    _logger.LogInformation("Keycloak rejected '{Username}' but local password is valid — using local auth", request.Username);
+                    if (user.KeycloakUserId != null)
+                        _ = _keycloakAuth.SyncPasswordToKeycloakAsync(user.KeycloakUserId, request.Password!);
+                    return BuildTokenResult(user, request);
+                }
                 return InvalidGrant("Invalid username or password.");
+            }
+
+            // AccountNotSetup = password temporanea → fallback locale se disponibile
+            if (keycloakResult == KeycloakAuthResult.AccountNotSetup)
+            {
+                if (user != null && user.HasLocalPassword && BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                {
+                    _logger.LogInformation("Keycloak account not set up for '{Username}', using local password", request.Username);
+                    if (user.KeycloakUserId != null)
+                        _ = _keycloakAuth.SyncPasswordToKeycloakAsync(user.KeycloakUserId, request.Password!);
+                    return BuildTokenResult(user, request);
+                }
+                return InvalidGrant("Account requires password change. Please login via browser to complete setup.");
+            }
 
             if (user == null)
             {

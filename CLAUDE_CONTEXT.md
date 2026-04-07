@@ -658,4 +658,4 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ---
 
-**Ultimo test funzionante:** 2026-04-07 - Online mode con Keycloak funzionante ✅ — login ibrido (Keycloak se online, locale se offline), sync utenti, HasLocalPassword, SetLocalPassword flow. Tutti e 3 gli scenari OAuth2 + refresh token + consent + test client `/test` confermati funzionanti.
+**Ultimo test funzionante:** 2026-04-07 - Online mode con Keycloak funzionante ✅ — login ibrido completo, sync bidirezionale (locale → Keycloak con password temporanea + auto-allineamento password), tutti e 3 gli scenari OAuth2 + refresh token + consent + test client `/test` confermati funzionanti con Keycloak online e offline.

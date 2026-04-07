@@ -124,6 +124,7 @@ using (var scope = app.Services.CreateScope())
         {
             Username = "admin",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
+            HasLocalPassword = true,
             Email = "admin@local.dev",
             FirstName = "Admin",
             LastName = "Local",
@@ -138,6 +139,7 @@ using (var scope = app.Services.CreateScope())
         {
             Username = "operator1",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("oper123"),
+            HasLocalPassword = true,
             Email = "operator1@local.dev",
             FirstName = "Mario",
             LastName = "Rossi",
@@ -198,18 +200,17 @@ using (var scope = app.Services.CreateScope())
 
         Console.WriteLine("✅ OAuth client 'hmi-local' registered");
 
-        if (await clientManager.FindByClientIdAsync("mes-fornitore") == null)
-    {
-        await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+        var mesCallbackUrl = builder.Configuration["Clients:MesCallbackUrl"] ?? "http://localhost:7000/callback";
+        var mesDescriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "mes-fornitore",
             ClientSecret = "mes-secret-123",
             DisplayName = "MES Fornitore",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
-            ConsentType = OpenIddict.Abstractions.OpenIddictConstants.ConsentTypes.Explicit, // Richiede consent!
+            ConsentType = OpenIddict.Abstractions.OpenIddictConstants.ConsentTypes.Explicit,
             RedirectUris =
             {
-                new Uri("http://localhost:7000/callback"),
+                new Uri(mesCallbackUrl),
                 new Uri("http://localhost:5063/test/callback")
             },
             Permissions =
@@ -224,10 +225,15 @@ using (var scope = app.Services.CreateScope())
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddict.Abstractions.OpenIddictConstants.Scopes.OfflineAccess,
                 OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
             }
-        });
+        };
+
+        var existingMesClient = await clientManager.FindByClientIdAsync("mes-fornitore");
+        if (existingMesClient == null)
+            await clientManager.CreateAsync(mesDescriptor);
+        else
+            await clientManager.UpdateAsync(existingMesClient, mesDescriptor);
 
         Console.WriteLine("✅ OAuth client 'mes-fornitore' registered (confidential)");
-    }
 
     // Client #3: Office API (Service Account - Client Credentials M2M)
     if (await clientManager.FindByClientIdAsync("office-api") == null)

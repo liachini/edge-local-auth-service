@@ -46,12 +46,35 @@ public class AccountController : Controller
         {
             // Online: Keycloak è autoritativo
             var loginClientId = _keycloakAuth.GetLoginClientId();
-            var keycloakOk = await _keycloakAuth.ValidateCredentialsAsync(model.Username!, model.Password!, loginClientId);
-            _logger.LogInformation("Keycloak validation for {Username}: {Result}", model.Username, keycloakOk);
+            var keycloakResult = await _keycloakAuth.ValidateCredentialsAsync(model.Username!, model.Password!, loginClientId);
+            _logger.LogInformation("Keycloak validation for {Username}: {Result}", model.Username, keycloakResult);
 
-            if (!keycloakOk)
+            if (keycloakResult == KeycloakAuthResult.InvalidCredentials)
             {
+                // Fallback locale per utenti creati localmente e sincronizzati con password temporanea su Keycloak
+                if (user != null && user.HasLocalPassword && BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
+                {
+                    _logger.LogInformation("Keycloak rejected '{Username}' but local password is valid — using local auth", model.Username);
+                    if (user.KeycloakUserId != null)
+                        _ = _keycloakAuth.SyncPasswordToKeycloakAsync(user.KeycloakUserId, model.Password!);
+                    await SignInUser(user);
+                    return RedirectToReturnUrl(model.ReturnUrl);
+                }
                 ModelState.AddModelError("", "Username o password non validi.");
+                return View(model);
+            }
+
+            // AccountNotSetup = password temporanea non ancora cambiata → fallback locale se disponibile
+            if (keycloakResult == KeycloakAuthResult.AccountNotSetup)
+            {
+                if (user != null && user.HasLocalPassword && BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
+                {
+                    if (user.KeycloakUserId != null)
+                        _ = _keycloakAuth.SyncPasswordToKeycloakAsync(user.KeycloakUserId, model.Password!);
+                    await SignInUser(user);
+                    return RedirectToReturnUrl(model.ReturnUrl);
+                }
+                ModelState.AddModelError("", "Il tuo account Keycloak richiede il cambio password. Accedi tramite browser per completare la configurazione.");
                 return View(model);
             }
 
