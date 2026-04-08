@@ -35,7 +35,7 @@ dotnet build -c Release
 
 ```powershell
 # x64 Windows
-dotnet publish -c Release -r win-x64 --self-contained -o publish\win-x64
+dotnet publish .\src\LocalAuthService\LocalAuthService.csproj -c Release -o publish\win-x64 -r win-x64 --self-contained
 ```
 
 **Output:** `publish\win-x64\LocalAuthService.exe` + tutte le dipendenze (no .NET runtime richiesto).
