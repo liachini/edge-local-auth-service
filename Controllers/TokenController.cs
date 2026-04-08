@@ -192,17 +192,46 @@ public class TokenController : ControllerBase
     {
         // Per client credentials, OpenIddict ha già validato il client
         // e verificato che abbia permessi per questo grant type
-        
+
+        Console.WriteLine($"🔍 DEBUG: HandleClientCredentialsGrant called with ClientId='{request.ClientId}'");
+
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
         identity.AddClaim(Claims.Subject, $"service-account-{request.ClientId}");
         identity.AddClaim(Claims.Name, $"{request.ClientId} Service Account");
         identity.AddClaim("client_id", request.ClientId!);
 
+        // Assegna ruoli specifici in base al client
+        Console.WriteLine($"🔍 DEBUG: Checking client roles for ClientId '{request.ClientId}'");
+
+        // Legacy credentials manager (for saving/updating credentials)
+        if (request.ClientId == "legacy-credentials-manager")
+        {
+            identity.AddClaim(Claims.Role, "legacy-credentials-manager");
+            identity.AddClaim(Claims.Role, "admin"); // Manager also has admin role
+            Console.WriteLine($"✅ ADDED ROLES: legacy-credentials-manager, admin to {request.ClientId}");
+        }
+        // Legacy password readers (for reading encrypted credentials)
+        else if (request.ClientId == "cli-simulator" ||
+                 request.ClientId == "erp-simulator" ||
+                 request.ClientId == "crm-simulator")
+        {
+            identity.AddClaim(Claims.Role, "legacy-password-reader");
+            Console.WriteLine($"✅ ADDED ROLE: legacy-password-reader to {request.ClientId}");
+        }
+        else
+        {
+            Console.WriteLine($"⚠️  Client '{request.ClientId}' has NO legacy-related roles");
+        }
+
         var principal = new ClaimsPrincipal(identity);
 
         // Gli scopes sono già stati validati da OpenIddict
         principal.SetScopes(request.GetScopes());
+
+        // ⭐ Setta i destinations dei claim (importante per includerli nel token JWT)
+        foreach (var claim in principal.Claims)
+            claim.SetDestinations(GetDestinations(claim));
 
         Console.WriteLine($"✅ Client credentials grant: {request.ClientId} authenticated");
 
@@ -302,6 +331,7 @@ public class TokenController : ControllerBase
                 yield break;
 
             case Claims.Role:
+            case ClaimTypes.Role: // ← Aggiungi anche ClaimTypes.Role
                 yield return Destinations.AccessToken;
                 yield break;
 

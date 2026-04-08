@@ -1,6 +1,6 @@
 # LocalAuthService - Context File per Claude in VS Code
 
-**Ultimo aggiornamento:** 2026-04-07
+**Ultimo aggiornamento:** 2026-04-08
 
 Questo file contiene il contesto completo del progetto per permettere a Claude (in VS Code o altri IDE) di capire immediatamente lo stato attuale e i prossimi passi.
 
@@ -646,6 +646,39 @@ dotnet publish -c Release -r win-x64 --self-contained
 - [ ] Admin UI
 - [ ] Status API
 
+### Scenario 4 — Legacy Credentials ✅ (completato 2026-04-08)
+**Hybrid Approach con Fine-Grained Access Control**
+
+- [x] Model `LegacyServiceCredential.cs` — tabella per credenziali criptate + campo `AllowedClientIds` (JSON array)
+- [x] `LegacyCredentialEncryptionService.cs` — AES-256 encryption con chiave machine-bound (PBKDF2-SHA256)
+- [x] `LegacyCredentialService.cs` — gestione salvataggio/lettura/revoca credenziali + controllo AllowedClientIds
+- [x] `LegacyController.cs` — API endpoints REST con error handling standardizzato
+  - `POST /api/legacy/credentials` — salva credenziale (ruolo: admin o legacy-credentials-manager)
+  - `POST /api/legacy/get-password` — legge password decriptata (ruolo: legacy-password-reader + AllowedClientIds check)
+  - `DELETE /api/legacy/credentials/{serviceId}` — revoca credenziale
+  - `GET /api/legacy/credentials` — lista credenziali (senza password)
+  - `GET /api/legacy/available-clients` — lista client con ruolo legacy-password-reader
+- [x] OAuth2 Clients registrati con ruoli specifici:
+  - `legacy-credentials-manager` → ruoli: "legacy-credentials-manager" + "admin" (per salvare)
+  - `cli-simulator` → ruolo: "legacy-password-reader" (per leggere)
+  - `erp-simulator` → ruolo: "legacy-password-reader"
+  - `crm-simulator` → ruolo: "legacy-password-reader"
+  - `unauthorized-test` → NO legacy roles (per testare controlli autorizzazione)
+- [x] Test UI Scenario 4 in `/test` con 2 sezioni:
+  - **4A - Manager**: form salva credenziale con multi-select dropdown AllowedClientIds (opzionale)
+  - **4B - Reader**: dropdown client disponibili + leggi password con fine-grained control
+- [x] Migration EF Core `20260408081851_AddLegacyServiceCredentials` (+ AllowedClientIds field)
+- [x] Audit logging: `LastAccessedAt`, `LastAccessedBy` nel DB
+- [x] Error handling REST standard: `ApiErrorFilter` globale per tutte le eccezioni
+- [x] OperatingModeDetector: cache 30s per check Keycloak, timeout ridotto a 2s
+- [x] Offline-proof (credenziali rimangono locali, non sincronizzate a Keycloak)
+
+### Error Handling & UX ✅ (2026-04-08)
+- [x] `Filters/ApiErrorFilter.cs` — exception filter globale per risposte REST standardizzate
+- [x] Status code + JSON display in test UI — mostra HTTP status con badge colorato + risposta formattata
+- [x] Ridotto timeout Keycloak check da 5s → 2s (login più veloce quando Keycloak offline)
+- [x] Cache 30s per OperatingModeDetector — evita ping ripetuti a Keycloak
+
 ### Deployment 📦
 - [x] Framework-dependent publish Windows
 - [x] Self-contained publish Windows (`--self-contained -r win-x64`)
@@ -658,4 +691,12 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ---
 
-**Ultimo test funzionante:** 2026-04-07 - Online mode con Keycloak funzionante ✅ — login ibrido completo, sync bidirezionale (locale → Keycloak con password temporanea + auto-allineamento password), tutti e 3 gli scenari OAuth2 + refresh token + consent + test client `/test` confermati funzionanti con Keycloak online e offline.
+**Ultimo test funzionante:** 2026-04-08 - Scenario 4 Legacy Credentials completo ✅
+- ✅ UI split 2 sezioni (Manager + Reader)
+- ✅ Multi-select dropdown AllowedClientIds (opzionale)
+- ✅ Fine-grained access control con AllowedClientIds + ruolo check
+- ✅ 5 client registrati (legacy-credentials-manager + 3 lettori + 1 test non-autorizzato)
+- ✅ REST error handling standardizzato con ApiErrorFilter globale
+- ✅ Status code + JSON display in tutti gli scenari di test
+- ✅ Keycloak check con cache 30s e timeout 2s (login non bloccato quando Keycloak down)
+- ✅ Online mode + offline mode + tutti e 3 gli scenari OAuth2 + refresh token + consent + test client `/test` confermati funzionanti

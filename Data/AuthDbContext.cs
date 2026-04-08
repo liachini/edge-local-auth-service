@@ -12,7 +12,8 @@ public class AuthDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<OAuthClient> Clients => Set<OAuthClient>();
     public DbSet<MachineConfig> MachineConfigs => Set<MachineConfig>();
-    public DbSet<UserConsent> UserConsents => Set<UserConsent>(); // ← AGGIUNGI
+    public DbSet<UserConsent> UserConsents => Set<UserConsent>();
+    public DbSet<LegacyServiceCredential> LegacyServiceCredentials => Set<LegacyServiceCredential>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +46,20 @@ public class AuthDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.UserId, e.ClientId });
+        });
+
+        // LegacyServiceCredential configuration
+        modelBuilder.Entity<LegacyServiceCredential>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.ServiceId).IsUnique();
+            entity.Property(e => e.ServiceId).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.EncryptedPassword).IsRequired();
+            entity.Property(e => e.ServiceType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.MachineName).HasMaxLength(255);
+            entity.Property(e => e.LastAccessedBy).HasMaxLength(255);
+            entity.Property(e => e.Description).HasMaxLength(500);
         });
     }
 }

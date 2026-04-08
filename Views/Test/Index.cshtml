@@ -440,6 +440,116 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SCENARIO 4: LEGACY CREDENTIALS                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="scenario s4" style="--s4-color: #8b5a00;">
+    <style>
+        .scenario.s4 .scenario-num { background: #3d2b00; color: #e3b341; }
+        .s4 .scenario-num { background: #3d2b00; color: #e3b341; }
+    </style>
+    <div class="scenario-header">
+        <div class="scenario-num">4</div>
+        <div>
+            <div class="scenario-title">Legacy Credentials (CLI)</div>
+            <div class="scenario-subtitle">CLI Simulator — accesso a credenziali legacy criptate per sistemi non-OAuth2</div>
+        </div>
+    </div>
+    <div class="scenario-body">
+
+        <!-- TAB SELECTOR -->
+        <div style="margin-bottom: 24px; display: flex; gap: 12px; border-bottom: 1px solid #30363d; padding-bottom: 16px;">
+            <button class="tab-btn active" onclick="switchS4Tab('manager')">👨‍💼 4A - Manager (Save)</button>
+            <button class="tab-btn" onclick="switchS4Tab('reader')">📖 4B - Reader (Get)</button>
+        </div>
+
+        <!-- SECTION 4A: MANAGER - SAVE CREDENTIALS -->
+        <div id="s4a-manager" style="display: block;">
+            <h3 style="margin-bottom: 16px; color: #e3b341;">Manager: Salva Credenziale Legacy</h3>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Service ID</label>
+                    <input id="s4a-service-id" type="text" value="cli-legacy" />
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input id="s4a-username" type="text" value="admin" />
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input id="s4a-password" type="text" value="secret-cli-password" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Service Type</label>
+                    <input id="s4a-type" type="text" value="cli" />
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input id="s4a-desc" type="text" value="Legacy CLI system credentials" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group full">
+                    <label>Allowed Client IDs (opzionale — lascia vuoto per permettere a tutti)</label>
+                    <select id="s4a-allowed-clients" multiple style="height: 100px;">
+                        <option value="cli-simulator">CLI Simulator</option>
+                        <option value="erp-simulator">ERP Simulator</option>
+                        <option value="crm-simulator">CRM Simulator</option>
+                    </select>
+                    <small style="display: block; margin-top: 8px; color: #8b949e;">💡 Ctrl+Click per selezionare più client, lascia vuoto per nessuna restrizione</small>
+                </div>
+            </div>
+
+            <button class="btn btn-yellow" onclick="runScenario4aSave()" style="background:#3d2b00;border:1px solid #8b5a00;color:#e3b341;">💾 Salva Credenziale</button>
+            <div class="loading" id="s4a-loading">⏳ Chiamata in corso...</div>
+
+            <div class="response-area" id="s4a-response">
+                <div class="response-tabs">
+                    <button class="tab-btn active" onclick="switchTab('s4a','raw')">JSON risposta</button>
+                </div>
+                <div class="tab-content">
+                    <div class="tab-panel active" id="s4a-tab-raw"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 4B: READER - READ CREDENTIALS -->
+        <div id="s4b-reader" style="display: none;">
+            <h3 style="margin-bottom: 16px; color: #e3b341;">Reader: Leggi Credenziale Legacy</h3>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Service ID</label>
+                    <input id="s4b-service-id" type="text" value="cli-legacy" />
+                </div>
+                <div class="form-group">
+                    <label>Client da usare</label>
+                    <select id="s4b-client"></select>
+                </div>
+            </div>
+
+            <button class="btn btn-yellow" onclick="runScenario4bGet()" style="background:#3d2b00;border:1px solid #8b5a00;color:#e3b341;">🔓 Leggi Password</button>
+            <div class="loading" id="s4b-loading">⏳ Chiamata in corso...</div>
+
+            <div class="response-area" id="s4b-response">
+                <div class="response-tabs">
+                    <button class="tab-btn active" onclick="switchTab('s4b','raw')">JSON risposta</button>
+                    <button class="tab-btn" onclick="switchTab('s4b','decrypt')">Password Decriptata</button>
+                </div>
+                <div class="tab-content">
+                    <div class="tab-panel active" id="s4b-tab-raw"></div>
+                    <div class="tab-panel" id="s4b-tab-decrypt"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const BASE_URL = '@ViewBag.BaseUrl';
 
@@ -447,7 +557,14 @@ const BASE_URL = '@ViewBag.BaseUrl';
 async function loadClients() {
     try {
         const res = await fetch(`${BASE_URL}/api/clients`);
-        const clients = await res.json();
+        let clients;
+        try {
+            clients = await res.json();
+        } catch(e) {
+            const text = await res.text();
+            console.error('Errore parsing API /clients response:', text);
+            return;
+        }
 
         const fill = (id, grantType) => {
             const sel = document.getElementById(id);
@@ -476,7 +593,16 @@ async function startScenario2() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, secret })
     });
-    const { state } = await res.json();
+    let stateData;
+    try {
+        stateData = await res.json();
+    } catch(e) {
+        const text = await res.text();
+        console.error('Errore parsing /test/save-client-state response:', text);
+        alert('Errore: ' + text);
+        return;
+    }
+    const { state } = stateData;
 
     const redirect = encodeURIComponent(`${BASE_URL}/test/callback`);
     const url = `${BASE_URL}/connect/authorize?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=openid%20profile%20email%20offline_access&state=${encodeURIComponent(state)}`;
@@ -500,13 +626,22 @@ async function runScenario1() {
 
     try {
         const res  = await fetch(`${BASE_URL}/connect/token`, { method: 'POST', body: params });
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch(e) {
+            const text = await res.text();
+            showLoading('s1', false);
+            document.getElementById('s1-response').textContent = '❌ Errore parsing token response:\n' + text;
+            document.getElementById('s1-response').classList.add('visible');
+            return;
+        }
         showLoading('s1', false);
 
         const hasRefresh = !!data.refresh_token;
         setFlow1Step(res.ok ? (hasRefresh ? 'done-refresh' : 'done') : 'error');
 
-        document.getElementById('s1-tab-raw').textContent = JSON.stringify(data, null, 2);
+        displayResponse('s1-tab-raw', res.status, data);
 
         if (data.access_token) {
             document.getElementById('s1-tab-access').innerHTML = renderTokenDetail(data.access_token);
@@ -562,13 +697,22 @@ async function runScenario3() {
 
     try {
         const res  = await fetch(`${BASE_URL}/connect/token`, { method: 'POST', body: params });
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch(e) {
+            const text = await res.text();
+            showLoading('s3', false);
+            document.getElementById('s3-tab-raw').textContent = '❌ Errore parsing token response:\n' + text;
+            document.getElementById('s3-response').classList.add('visible');
+            return;
+        }
         showLoading('s3', false);
 
         document.getElementById('s3-step2').className = 'step done';
         document.getElementById('s3-step3').className = 'step done';
 
-        document.getElementById('s3-tab-raw').textContent = JSON.stringify(data, null, 2);
+        displayResponse('s3-tab-raw', res.status, data);
         if (data.access_token) {
             document.getElementById('s3-tab-access').innerHTML = renderTokenDetail(data.access_token);
             document.getElementById('s3-api-content').innerHTML = renderApiCallBox('s3', data.access_token);
@@ -623,7 +767,15 @@ async function runRefresh() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ refreshToken: rt, clientId, clientSecret })
         });
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch(e) {
+            const text = await res.text();
+            showLoading('s2', false);
+            document.getElementById('s2-tab-raw').textContent = '❌ Errore parsing refresh response:\n' + text;
+            return;
+        }
         showLoading('s2', false);
 
         if (res.ok && data.refresh_token) {
@@ -721,6 +873,314 @@ function renderRefreshInfo(token) {
 
 function showLoading(scenario, show) {
     document.getElementById(`${scenario}-loading`).classList.toggle('visible', show);
+}
+
+// Helper: Display HTTP response with status code and JSON
+function displayResponse(elementId, status, data) {
+    const statusText = {
+        200: 'OK',
+        201: 'Created',
+        400: 'Bad Request',
+        401: 'Unauthorized',
+        403: 'Forbidden',
+        404: 'Not Found',
+        500: 'Internal Server Error'
+    }[status] || 'Unknown';
+
+    let statusColor, statusBg, statusIcon;
+    if (status >= 200 && status < 300) {
+        statusColor = '#238636';
+        statusBg = '#0d3817';
+        statusIcon = '✅';
+    } else if (status >= 400 && status < 500) {
+        statusColor = '#f85149';
+        statusBg = '#3d1f1a';
+        statusIcon = '⚠️';
+    } else if (status >= 500) {
+        statusColor = '#da3633';
+        statusBg = '#490202';
+        statusIcon = '❌';
+    } else {
+        statusColor = '#8b949e';
+        statusBg = '#161b22';
+        statusIcon = 'ℹ️';
+    }
+
+    const jsonStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+
+    document.getElementById(elementId).innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; background: ${statusBg}; border: 1px solid ${statusColor}; border-radius: 4px; width: fit-content;">
+            <span style="font-size: 14px;">${statusIcon}</span>
+            <span style="color: ${statusColor}; font-weight: 600; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px;">
+                ${status} ${statusText}
+            </span>
+        </div>
+        <pre style="background: #0d1117; color: #c9d1d9; padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid #30363d; font-size: 12px; line-height: 1.5; margin: 0;">${jsonStr}</pre>
+    `;
+}
+
+// ── SCENARIO 4: Legacy Credentials ────────────────────────────
+function switchS4Tab(section) {
+    // Hide both sections
+    document.getElementById('s4a-manager').style.display = 'none';
+    document.getElementById('s4b-reader').style.display = 'none';
+
+    // Deactivate both buttons
+    const btns = document.querySelectorAll('[onclick*="switchS4Tab"]');
+    btns.forEach(b => b.classList.remove('active'));
+
+    // Show selected section and activate button
+    if (section === 'manager') {
+        document.getElementById('s4a-manager').style.display = 'block';
+        btns[0].classList.add('active');
+    } else if (section === 'reader') {
+        document.getElementById('s4b-reader').style.display = 'block';
+        btns[1].classList.add('active');
+        // Load available clients when entering reader section
+        loadAvailableClientsForS4b();
+    }
+}
+
+// Load available OAuth2 clients for section 4B reader
+async function loadAvailableClientsForS4b() {
+    const select = document.getElementById('s4b-client');
+
+    // Default hardcoded list
+    const defaultClients = [
+        { clientId: "cli-simulator", displayName: "CLI Simulator", description: "Legge credenziali per servizi CLI" },
+        { clientId: "erp-simulator", displayName: "ERP Simulator", description: "Legge credenziali per sistema ERP" },
+        { clientId: "crm-simulator", displayName: "CRM Simulator", description: "Legge credenziali per sistema CRM" },
+        { clientId: "unauthorized-test", displayName: "⚠️ Unauthorized Test", description: "NO legacy-password-reader role (test auth failure)" }
+    ];
+
+    try {
+        const res = await fetch(`${BASE_URL}/api/legacy/available-clients`);
+
+        if (res.ok) {
+            let data;
+            try {
+                data = await res.json();
+            } catch(e) {
+                const text = await res.text();
+                console.warn('Error parsing available clients response:', text);
+                throw e; // Fall through to outer catch
+            }
+            if (data.clients && data.clients.length > 0) {
+                select.innerHTML = data.clients.map(c =>
+                    `<option value="${c.clientId}">${c.displayName || c.clientId}${c.description ? ' — ' + c.description : ''}</option>`
+                ).join('');
+                return;
+            }
+        }
+    } catch(e) {
+        console.warn('Error loading available clients from API, using hardcoded list', e);
+    }
+
+    // Fallback: use hardcoded list
+    select.innerHTML = defaultClients.map(c =>
+        `<option value="${c.clientId}">${c.displayName}${c.description ? ' — ' + c.description : ''}</option>`
+    ).join('');
+}
+
+// 4A: Manager - Save Legacy Credential
+async function runScenario4aSave() {
+    showLoading('s4a', true);
+    try {
+        // 1. Get Client Credentials token for legacy-credentials-manager
+        const params = new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: 'legacy-credentials-manager',
+            client_secret: 'legacy-manager-secret-456',
+            scope: 'openid'
+        });
+
+        const tokenRes = await fetch(`${BASE_URL}/connect/token`, { method: 'POST', body: params });
+        let tokenText = await tokenRes.text();
+        let tokenData;
+        try {
+            tokenData = JSON.parse(tokenText);
+        } catch(e) {
+            document.getElementById('s4a-tab-raw').textContent = '❌ Errore parsing token response:\n' + tokenText;
+            document.getElementById('s4a-response').classList.add('visible');
+            showLoading('s4a', false);
+            return;
+        }
+
+        if (!tokenRes.ok || !tokenData.access_token) {
+            displayResponse('s4a-tab-raw', tokenRes.status, tokenData);
+            document.getElementById('s4a-response').classList.add('visible');
+            showLoading('s4a', false);
+            return;
+        }
+
+        // 2. Save legacy credential with AllowedClientIds
+        const serviceId = document.getElementById('s4a-service-id').value;
+        const username = document.getElementById('s4a-username').value;
+        const password = document.getElementById('s4a-password').value;
+        const serviceType = document.getElementById('s4a-type').value;
+        const description = document.getElementById('s4a-desc').value;
+
+        // Get selected values from multi-select dropdown
+        const selectElement = document.getElementById('s4a-allowed-clients');
+        const allowedClientIds = Array.from(selectElement.selectedOptions).map(opt => opt.value);
+
+        const saveRes = await fetch(`${BASE_URL}/api/legacy/credentials`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                serviceId,
+                username,
+                password,
+                serviceType,
+                description,
+                allowedClientIds: allowedClientIds.length > 0 ? allowedClientIds : null
+            })
+        });
+
+        let saveText = await saveRes.text();
+        let saveData;
+        try {
+            saveData = JSON.parse(saveText);
+        } catch(e) {
+            displayResponse('s4a-tab-raw', saveRes.status, saveText);
+            document.getElementById('s4a-response').classList.add('visible');
+            showLoading('s4a', false);
+            return;
+        }
+
+        showLoading('s4a', false);
+
+        displayResponse('s4a-tab-raw', saveRes.status, saveData);
+        document.getElementById('s4a-response').classList.add('visible');
+
+        if (saveRes.ok) {
+            // Store token for reader section
+            localStorage.setItem('s4-manager-token', tokenData.access_token);
+            localStorage.setItem('s4-last-saved-service', serviceId);
+        }
+    } catch(e) {
+        showLoading('s4a', false);
+        document.getElementById('s4a-tab-raw').textContent = '❌ Errore: ' + e.message;
+        document.getElementById('s4a-response').classList.add('visible');
+    }
+}
+
+// 4B: Reader - Get Legacy Credential
+async function runScenario4bGet() {
+    // Clear previous password display
+    document.getElementById('s4b-tab-decrypt').innerHTML = '';
+
+    showLoading('s4b', true);
+    try {
+        const clientId = document.getElementById('s4b-client').value;
+        const serviceId = document.getElementById('s4b-service-id').value;
+
+        if (!clientId) {
+            document.getElementById('s4b-tab-raw').textContent = '❌ Errore: Seleziona un client';
+            document.getElementById('s4b-response').classList.add('visible');
+            showLoading('s4b', false);
+            return;
+        }
+
+        if (!serviceId) {
+            document.getElementById('s4b-tab-raw').textContent = '❌ Errore: Inserisci Service ID';
+            document.getElementById('s4b-response').classList.add('visible');
+            showLoading('s4b', false);
+            return;
+        }
+
+        // Get token for selected client using Client Credentials
+        const params = new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: clientId,
+            client_secret: getClientSecret(clientId),
+            scope: 'openid'
+        });
+
+        const tokenRes = await fetch(`${BASE_URL}/connect/token`, { method: 'POST', body: params });
+        let tokenText = await tokenRes.text();
+        let tokenData;
+        try {
+            tokenData = JSON.parse(tokenText);
+        } catch(e) {
+            document.getElementById('s4b-tab-raw').textContent = '❌ Errore parsing token response:\n' + tokenText;
+            document.getElementById('s4b-response').classList.add('visible');
+            showLoading('s4b', false);
+            return;
+        }
+
+        if (!tokenRes.ok || !tokenData.access_token) {
+            displayResponse('s4b-tab-raw', tokenRes.status, tokenData);
+            document.getElementById('s4b-response').classList.add('visible');
+            showLoading('s4b', false);
+            return;
+        }
+
+        // Get password using client token
+        const res = await fetch(`${BASE_URL}/api/legacy/get-password`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ serviceId })
+        });
+
+        let text = await res.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch(e) {
+            displayResponse('s4b-tab-raw', res.status, text);
+            console.error('Full response:', text);
+            document.getElementById('s4b-response').classList.add('visible');
+            showLoading('s4b', false);
+            return;
+        }
+
+        showLoading('s4b', false);
+
+        displayResponse('s4b-tab-raw', res.status, data);
+
+        if (data.password) {
+            document.getElementById('s4b-tab-decrypt').innerHTML = `
+                <div style="background:#0d2818; border:1px solid #238636; border-radius:6px; padding:16px; margin-top:12px;">
+                    <div style="font-size:11px; color:#56d364; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px">⚠️ Password Decriptata</div>
+                    <div style="font-family:monospace; font-size:14px; color:#56d364; word-break:break-all; letter-spacing:1px;">
+                        ${data.password}
+                    </div>
+                    <div style="font-size:11px; color:#8b949e; margin-top:12px;">
+                        Questa password è stata decriptata dal database locale e rimane SOLO in memoria. Utilizzala immediatamente e scarta.
+                    </div>
+                </div>
+            `;
+        }
+
+        document.getElementById('s4b-response').classList.add('visible');
+    } catch(e) {
+        showLoading('s4b', false);
+        document.getElementById('s4b-tab-raw').textContent = '❌ Errore: ' + e.message;
+        document.getElementById('s4b-response').classList.add('visible');
+    }
+}
+
+// Helper: Get client secret by client ID (hardcoded for demo)
+function getClientSecret(clientId) {
+    const secrets = {
+        'cli-simulator': 'cli-simulator-secret-789',
+        'erp-simulator': 'erp-simulator-secret-789',
+        'crm-simulator': 'crm-simulator-secret-789',
+        'unauthorized-test': 'unauthorized-test-secret'
+    };
+    return secrets[clientId] || 'unknown-secret';
+}
+
+// Helper: Get auth token from storage
+function getAuthToken() {
+    return localStorage.getItem('auth-token') || '';
 }
 
 // ── API call ──────────────────────────────────────────────────

@@ -6,6 +6,8 @@ public class OperatingModeDetector
     private readonly ILogger<OperatingModeDetector> _logger;
     private readonly HttpClient _http;
     private bool _isOnline = false;
+    private DateTime _lastCheckTime = DateTime.MinValue;
+    private const int CheckCacheSeconds = 30; // Cache check result for 30 seconds
 
     public bool IsOnline => _isOnline;
     public event Action<bool>? OnModeChanged;
@@ -14,7 +16,7 @@ public class OperatingModeDetector
     {
         _config = config;
         _logger = logger;
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) }; // Reduced timeout to 2 seconds
     }
 
     public async Task<bool> CheckAsync()
@@ -25,6 +27,14 @@ public class OperatingModeDetector
             SetOnline(false);
             return false;
         }
+
+        // Cache the check result for CheckCacheSeconds
+        if (DateTime.UtcNow.Subtract(_lastCheckTime).TotalSeconds < CheckCacheSeconds)
+        {
+            return _isOnline;
+        }
+
+        _lastCheckTime = DateTime.UtcNow;
 
         try
         {

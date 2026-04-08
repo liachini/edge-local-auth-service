@@ -205,6 +205,89 @@ Office Service → POST /connect/token
 
 **Client:** `office-api` (confidential, service account)
 
+### Scenario 4 — Legacy Credentials (CLI, ERP, Database)
+
+**Caso d'uso:** Servizio ha bisogno di credenziali non-OAuth2 (username/password legacy) per autenticarsi su sistemi legacy (CLI, ERP, database).
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              SCENARIO 4: HYBRID APPROACH                │
+│                                                         │
+│  4A - MANAGER (Admin)                                  │
+│  ─────────────────────                                 │
+│  Salva credenziale con AllowedClientIds opzionali     │
+│                                                         │
+│  POST /connect/token (legacy-credentials-manager)     │
+│  POST /api/legacy/credentials                          │
+│    ├── serviceId: "erp-database"                       │
+│    ├── username: "erp_user"                            │
+│    ├── password: "secret-password"                     │
+│    └── allowedClientIds: ["cli-sim", "erp-sim"]        │
+│                                                         │
+│  4B - READER (Service)                                 │
+│  ─────────────────────                                 │
+│  Legge password con fine-grained access control        │
+│                                                         │
+│  POST /connect/token (cli-simulator)                   │
+│  POST /api/legacy/get-password                         │
+│    └── serviceId: "erp-database"                       │
+│    → { password: "decrypted-plaintext" }               │
+│                                                         │
+│  ⚡ Access Control Layers:                             │
+│     1. Role check: "legacy-password-reader" ✓          │
+│     2. AllowedClientIds check (se specificati) ✓       │
+│     3. Audit logging: chi accede e quando ✓            │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Caratteristiche:**
+- ✅ Credenziali salvate **CRIPTATE** in SQLite (AES-256, chiave machine-bound)
+- ✅ **Autorizzazione a 2 livelli:**
+  - Ruolo "legacy-password-reader" (obbligatorio)
+  - AllowedClientIds whitelist (opzionale, granulare)
+- ✅ **Audit trail**: chi accede, quando, da quale client
+- ✅ **Offline-proof**: funziona sempre, specifiche della macchina
+- ✅ Password in plain text **solo in RAM durante uso**, subito scartata
+
+**Setup:**
+
+```bash
+# 4A - MANAGER: Salva credenziale (una sola volta)
+POST /connect/token
+  grant_type=client_credentials
+  client_id=legacy-credentials-manager
+  client_secret=legacy-manager-secret-456
+
+POST /api/legacy/credentials
+  Authorization: Bearer {manager-token}
+  Body: {
+    serviceId: "erp-database",
+    username: "erp_user",
+    password: "secret-password",
+    serviceType: "database",
+    description: "SAP ERP credentials",
+    allowedClientIds: ["cli-simulator", "erp-simulator"]  ← optional
+  }
+
+# 4B - READER: Legge password (ogni volta che serve)
+POST /connect/token
+  grant_type=client_credentials
+  client_id=cli-simulator
+  client_secret=cli-simulator-secret-789
+
+POST /api/legacy/get-password
+  Authorization: Bearer {reader-token}
+  Body: {serviceId: "erp-database"}
+  ← Response: {password: "secret-password"}
+```
+
+**Client registrati:**
+- `legacy-credentials-manager` (confidential) — ruolo: "legacy-credentials-manager" + "admin"
+- `cli-simulator` (confidential) — ruolo: "legacy-password-reader"
+- `erp-simulator` (confidential) — ruolo: "legacy-password-reader"
+- `crm-simulator` (confidential) — ruolo: "legacy-password-reader"
+- `unauthorized-test` (confidential) — NO legacy roles (per testing)
+
 ---
 
 ## Sincronizzazione Bidirezionale

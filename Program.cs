@@ -2,13 +2,18 @@ using Microsoft.EntityFrameworkCore;
 using LocalAuthService.Data;
 using LocalAuthService.Models;
 using LocalAuthService.Services;
+using LocalAuthService.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseWindowsService();
 
 // Add services
-builder.Services.AddControllersWithViews();
+builder.Services.AddHttpContextAccessor(); // ← Per LegacyCredentialService
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<ApiErrorFilter>();
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -32,6 +37,10 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 
 // JWKS Manager (chiave locale)
 builder.Services.AddSingleton(new JwksManager(dataDir));
+
+// Legacy Credentials (encrypted, machine-specific)
+builder.Services.AddSingleton<LegacyCredentialEncryptionService>();
+builder.Services.AddScoped<LegacyCredentialService>();
 
 // Keycloak sync
 builder.Services.AddSingleton<OperatingModeDetector>();
@@ -234,6 +243,7 @@ using (var scope = app.Services.CreateScope())
             await clientManager.UpdateAsync(existingMesClient, mesDescriptor);
 
         Console.WriteLine("✅ OAuth client 'mes-fornitore' registered (confidential)");
+    }
 
     // Client #3: Office API (Service Account - Client Credentials M2M)
     if (await clientManager.FindByClientIdAsync("office-api") == null)
@@ -256,6 +266,105 @@ using (var scope = app.Services.CreateScope())
 
         Console.WriteLine("✅ OAuth client 'office-api' registered (service account)");
     }
+
+    // Client #4: CLI Simulator (Service Account - Client Credentials for legacy credential access)
+    if (await clientManager.FindByClientIdAsync("cli-simulator") == null)
+    {
+        await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+        {
+            ClientId = "cli-simulator",
+            ClientSecret = "cli-simulator-secret-789",
+            DisplayName = "CLI Simulator Service Account",
+            ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
+            Permissions =
+            {
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
+            }
+        });
+
+        Console.WriteLine("✅ OAuth client 'cli-simulator' registered (Client Credentials for legacy credentials)");
+    }
+
+    // Client #5: Legacy Credentials Manager (for saving/managing legacy credentials)
+    if (await clientManager.FindByClientIdAsync("legacy-credentials-manager") == null)
+    {
+        await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+        {
+            ClientId = "legacy-credentials-manager",
+            ClientSecret = "legacy-manager-secret-456",
+            DisplayName = "Legacy Credentials Manager",
+            ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
+            Permissions =
+            {
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
+            }
+        });
+
+        Console.WriteLine("✅ OAuth client 'legacy-credentials-manager' registered");
+    }
+
+    // Client #6: ERP Simulator (for reading legacy credentials)
+    if (await clientManager.FindByClientIdAsync("erp-simulator") == null)
+    {
+        await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+        {
+            ClientId = "erp-simulator",
+            ClientSecret = "erp-simulator-secret-789",
+            DisplayName = "ERP Simulator Service Account",
+            ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
+            Permissions =
+            {
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
+            }
+        });
+
+        Console.WriteLine("✅ OAuth client 'erp-simulator' registered");
+    }
+
+    // Client #7: CRM Simulator (for reading legacy credentials)
+    if (await clientManager.FindByClientIdAsync("crm-simulator") == null)
+    {
+        await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+        {
+            ClientId = "crm-simulator",
+            ClientSecret = "crm-simulator-secret-789",
+            DisplayName = "CRM Simulator Service Account",
+            ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
+            Permissions =
+            {
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
+            }
+        });
+
+        Console.WriteLine("✅ OAuth client 'crm-simulator' registered");
+    }
+
+    // Client #8: Unauthorized Test Client (NO legacy roles — for testing authorization)
+    if (await clientManager.FindByClientIdAsync("unauthorized-test") == null)
+    {
+        await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+        {
+            ClientId = "unauthorized-test",
+            ClientSecret = "unauthorized-test-secret",
+            DisplayName = "Unauthorized Test Client",
+            ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
+            Permissions =
+            {
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid"
+            }
+        });
+
+        Console.WriteLine("✅ OAuth client 'unauthorized-test' registered (NO legacy roles for testing)");
     }
     }
     else
@@ -296,6 +405,9 @@ using (var scope = app.Services.CreateScope())
             }
         }
     }
+
+    // ✅ Esplicito close della connessione per evitare SQLite file lock
+    db.Database.CloseConnection();
 }
 
 // Configure pipeline
