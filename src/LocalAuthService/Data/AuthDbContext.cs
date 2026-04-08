@@ -56,7 +56,6 @@ public class AuthDbContext : DbContext
             entity.Property(e => e.ServiceId).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Username).IsRequired().HasMaxLength(255);
             entity.Property(e => e.EncryptedPassword).IsRequired();
-            entity.Property(e => e.ServiceType).IsRequired().HasMaxLength(50);
             entity.Property(e => e.MachineName).HasMaxLength(255);
             entity.Property(e => e.LastAccessedBy).HasMaxLength(255);
             entity.Property(e => e.Description).HasMaxLength(500);

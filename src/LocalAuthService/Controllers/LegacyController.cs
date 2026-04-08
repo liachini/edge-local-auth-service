@@ -54,7 +54,6 @@ public class LegacyController : ControllerBase
                 req.ServiceId,
                 req.Username,
                 req.Password,
-                req.ServiceType ?? "generic",
                 req.Description,
                 allowedClientsJson);
 
@@ -204,7 +203,6 @@ public class SaveLegacyCredentialRequest
     public required string ServiceId { get; set; }
     public required string Username { get; set; }
     public required string Password { get; set; }
-    public string? ServiceType { get; set; }
     public string? Description { get; set; }
     public List<string>? AllowedClientIds { get; set; } // Es: ["cli-simulator", "erp-simulator"]
 }

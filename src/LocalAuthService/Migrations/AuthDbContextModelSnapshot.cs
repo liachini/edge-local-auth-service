@@ -57,11 +57,6 @@ namespace LocalAuthService.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ServiceType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(255)

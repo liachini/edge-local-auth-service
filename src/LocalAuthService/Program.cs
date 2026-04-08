@@ -38,7 +38,10 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 // JWKS Manager (chiave locale)
 builder.Services.AddSingleton(new JwksManager(dataDir));
 
-// Legacy Credentials (encrypted, machine-specific)
+// Vault key service (encryption key from local file, not derived from hostname)
+builder.Services.AddSingleton<VaultKeyService>();
+
+// Legacy Credentials (encrypted, vault-key based)
 builder.Services.AddSingleton<LegacyCredentialEncryptionService>();
 builder.Services.AddScoped<LegacyCredentialService>();
 
@@ -213,7 +216,8 @@ using (var scope = app.Services.CreateScope())
         var mesDescriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "mes-fornitore",
-            ClientSecret = "mes-secret-123",
+            ClientSecret = builder.Configuration["Clients:MesFornitore:Secret"]
+                ?? throw new InvalidOperationException("Clients:MesFornitore:Secret not configured"),
             DisplayName = "MES Fornitore",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             ConsentType = OpenIddict.Abstractions.OpenIddictConstants.ConsentTypes.Explicit,
@@ -251,7 +255,8 @@ using (var scope = app.Services.CreateScope())
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "office-api",
-            ClientSecret = "office-secret-456",
+            ClientSecret = builder.Configuration["Clients:OfficeApi:Secret"]
+                ?? throw new InvalidOperationException("Clients:OfficeApi:Secret not configured"),
             DisplayName = "Office API Service Account",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             Permissions =
@@ -273,7 +278,8 @@ using (var scope = app.Services.CreateScope())
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "cli-simulator",
-            ClientSecret = "cli-simulator-secret-789",
+            ClientSecret = builder.Configuration["Clients:CliSimulator:Secret"]
+                ?? throw new InvalidOperationException("Clients:CliSimulator:Secret not configured"),
             DisplayName = "CLI Simulator Service Account",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             Permissions =
@@ -293,7 +299,8 @@ using (var scope = app.Services.CreateScope())
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "legacy-credentials-manager",
-            ClientSecret = "legacy-manager-secret-456",
+            ClientSecret = builder.Configuration["Clients:LegacyCredentialsManager:Secret"]
+                ?? throw new InvalidOperationException("Clients:LegacyCredentialsManager:Secret not configured"),
             DisplayName = "Legacy Credentials Manager",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             Permissions =
@@ -313,7 +320,8 @@ using (var scope = app.Services.CreateScope())
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "erp-simulator",
-            ClientSecret = "erp-simulator-secret-789",
+            ClientSecret = builder.Configuration["Clients:ErpSimulator:Secret"]
+                ?? throw new InvalidOperationException("Clients:ErpSimulator:Secret not configured"),
             DisplayName = "ERP Simulator Service Account",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             Permissions =
@@ -333,7 +341,8 @@ using (var scope = app.Services.CreateScope())
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "crm-simulator",
-            ClientSecret = "crm-simulator-secret-789",
+            ClientSecret = builder.Configuration["Clients:CrmSimulator:Secret"]
+                ?? throw new InvalidOperationException("Clients:CrmSimulator:Secret not configured"),
             DisplayName = "CRM Simulator Service Account",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             Permissions =
@@ -353,7 +362,8 @@ using (var scope = app.Services.CreateScope())
         await clientManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
         {
             ClientId = "unauthorized-test",
-            ClientSecret = "unauthorized-test-secret",
+            ClientSecret = builder.Configuration["Clients:UnauthorizedTest:Secret"]
+                ?? throw new InvalidOperationException("Clients:UnauthorizedTest:Secret not configured"),
             DisplayName = "Unauthorized Test Client",
             ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
             Permissions =
@@ -417,9 +427,32 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-if (app.Environment.IsDevelopment())
-    app.UseHttpsRedirection();
-app.UseAuthentication(); 
+// HTTPS enforcement (always redirect; HSTS only in production)
+app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+// Security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+
+    if (!app.Environment.IsDevelopment())
+        context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+
+    // No-cache for endpoints that return sensitive credentials
+    if (context.Request.Path.StartsWithSegments("/api/legacy"))
+    {
+        context.Response.Headers.Append("Cache-Control", "no-store, no-cache, must-revalidate");
+        context.Response.Headers.Append("Pragma", "no-cache");
+    }
+
+    await next();
+});
+
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

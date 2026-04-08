@@ -36,7 +36,6 @@ public class LegacyCredentialService
         string serviceId,
         string username,
         string plainPassword,
-        string serviceType,
         string? description = null,
         string? allowedClientIds = null)
     {
@@ -62,7 +61,6 @@ public class LegacyCredentialService
                 // Update
                 existing.Username = username;
                 existing.EncryptedPassword = encrypted;
-                existing.ServiceType = serviceType;
                 existing.Description = description;
                 existing.AllowedClientIds = allowedClientIds;
                 existing.IsActive = true;
@@ -82,7 +80,6 @@ public class LegacyCredentialService
                     ServiceId = serviceId,
                     Username = username,
                     EncryptedPassword = encrypted,
-                    ServiceType = serviceType,
                     Description = description,
                     AllowedClientIds = allowedClientIds,
                     CreatedAt = DateTime.UtcNow,
@@ -92,8 +89,8 @@ public class LegacyCredentialService
                 _db.LegacyServiceCredentials.Add(credential);
 
                 _logger.LogInformation(
-                    "✅ Credenziale legacy salvata: {ServiceId} (user={Username}, type={ServiceType})",
-                    serviceId, username, serviceType);
+                    "✅ Credenziale legacy salvata: {ServiceId} (user={Username})",
+                    serviceId, username);
             }
 
             await _db.SaveChangesAsync();
@@ -241,7 +238,6 @@ public class LegacyCredentialService
                 {
                     ServiceId = c.ServiceId,
                     Username = c.Username,
-                    ServiceType = c.ServiceType,
                     Description = c.Description,
                     CreatedAt = c.CreatedAt,
                     LastAccessedAt = c.LastAccessedAt,
@@ -267,7 +263,6 @@ public class LegacyServiceCredentialInfo
 {
     public string ServiceId { get; set; } = "";
     public string Username { get; set; } = "";
-    public string ServiceType { get; set; } = "";
     public string? Description { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastAccessedAt { get; set; }

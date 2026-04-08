@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet ef:*)"
+      "Bash(dotnet ef:*)",
+      "Bash(rm -f SECURITY_TESTING.md SECURITY_CROSSPLATFORM.md SECURITY_OFFLINE_FIRST_STRATEGY.md SECURITY_ACTION_PLAN.md SECURITY_SUMMARY.md)",
+      "Bash(ls -la *.md)",
+      "Bash(mkdir -p \"c:/Repos/LocalAuthService/LocalAuthService.Tests\")",
+      "Bash(cp \"c:/Repos/LocalAuthService/Tests/\"*.cs \"c:/Repos/LocalAuthService/LocalAuthService.Tests/\")",
+      "Bash(cp \"c:/Repos/LocalAuthService/Tests/LocalAuthService.Tests.csproj\" \"c:/Repos/LocalAuthService/LocalAuthService.Tests/\")",
+      "Bash(dotnet sln:*)",
+      "Bash(cmd /c \"rd /s /q \\\\\"c:\\\\Repos\\\\LocalAuthService\\\\Tests\\\\\"\")",
+      "Bash(dotnet build:*)",
+      "Bash(cmd /c \"rd /s /q Tests\")",
+      "Bash(del LocalAuthService.slnx)",
+      "Bash(mkdir src\\\\LocalAuthService)",
+      "Bash(cmd /c \"rd /s /q \\\\\"c:\\\\Repos\\\\LocalAuthService\\\\srcLocalAuthService\\\\\"\")",
+      "Bash(cmd /c \"mkdir \\\\\"c:\\\\Repos\\\\LocalAuthService\\\\src\\\\\" && mkdir \\\\\"c:\\\\Repos\\\\LocalAuthService\\\\src\\\\LocalAuthService\\\\\"\")",
+      "Bash(git -C \"/c/Repos/LocalAuthService\" status --short)",
+      "Bash(dotnet test:*)"
     ]
   }
 }

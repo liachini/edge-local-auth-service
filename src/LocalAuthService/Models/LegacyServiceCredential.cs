@@ -25,11 +25,6 @@ public class LegacyServiceCredential
     public required string EncryptedPassword { get; set; }
 
     /// <summary>
-    /// Tipo di servizio legacy (cli, database, api, erp, etc)
-    /// </summary>
-    public required string ServiceType { get; set; }
-
-    /// <summary>
     /// Nome della macchina (per documentazione/audit)
     /// </summary>
     public string MachineName { get; set; } = Environment.MachineName;

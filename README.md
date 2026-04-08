@@ -213,30 +213,30 @@ Office Service → POST /connect/token
 ┌─────────────────────────────────────────────────────────┐
 │              SCENARIO 4: HYBRID APPROACH                │
 │                                                         │
-│  4A - MANAGER (Admin)                                  │
-│  ─────────────────────                                 │
-│  Salva credenziale con AllowedClientIds opzionali     │
+│  4A - MANAGER (Admin)                                   │
+│  ─────────────────────                                  │
+│  Salva credenziale con AllowedClientIds opzionali       │
 │                                                         │
-│  POST /connect/token (legacy-credentials-manager)     │
-│  POST /api/legacy/credentials                          │
-│    ├── serviceId: "erp-database"                       │
-│    ├── username: "erp_user"                            │
-│    ├── password: "secret-password"                     │
-│    └── allowedClientIds: ["cli-sim", "erp-sim"]        │
+│  POST /connect/token (legacy-credentials-manager)       │
+│  POST /api/legacy/credentials                           │
+│    ├── serviceId: "erp-database"                        │
+│    ├── username: "erp_user"                             │
+│    ├── password: "secret-password"                      │
+│    └── allowedClientIds: ["cli-sim", "erp-sim"]         │
 │                                                         │
-│  4B - READER (Service)                                 │
-│  ─────────────────────                                 │
-│  Legge password con fine-grained access control        │
+│  4B - READER (Service)                                  │
+│  ─────────────────────                                  │
+│  Legge password con fine-grained access control         │
 │                                                         │
-│  POST /connect/token (cli-simulator)                   │
-│  POST /api/legacy/get-password                         │
-│    └── serviceId: "erp-database"                       │
-│    → { password: "decrypted-plaintext" }               │
+│  POST /connect/token (cli-simulator)                    │
+│  POST /api/legacy/get-password                          │
+│    └── serviceId: "erp-database"                        │
+│    → { password: "decrypted-plaintext" }                │
 │                                                         │
-│  ⚡ Access Control Layers:                             │
-│     1. Role check: "legacy-password-reader" ✓          │
-│     2. AllowedClientIds check (se specificati) ✓       │
-│     3. Audit logging: chi accede e quando ✓            │
+│  ⚡ Access Control Layers:                              │
+│     1. Role check: "legacy-password-reader" ✓           │
+│     2. AllowedClientIds check (se specificati) ✓        │
+│     3. Audit logging: chi accede e quando ✓             │
 └─────────────────────────────────────────────────────────┘
 ```
 

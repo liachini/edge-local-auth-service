@@ -484,10 +484,6 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label>Service Type</label>
-                    <input id="s4a-type" type="text" value="cli" />
-                </div>
-                <div class="form-group">
                     <label>Description</label>
                     <input id="s4a-desc" type="text" value="Legacy CLI system credentials" />
                 </div>
@@ -1017,7 +1013,6 @@ async function runScenario4aSave() {
         const serviceId = document.getElementById('s4a-service-id').value;
         const username = document.getElementById('s4a-username').value;
         const password = document.getElementById('s4a-password').value;
-        const serviceType = document.getElementById('s4a-type').value;
         const description = document.getElementById('s4a-desc').value;
 
         // Get selected values from multi-select dropdown
@@ -1034,7 +1029,6 @@ async function runScenario4aSave() {
                 serviceId,
                 username,
                 password,
-                serviceType,
                 description,
                 allowedClientIds: allowedClientIds.length > 0 ? allowedClientIds : null
             })
