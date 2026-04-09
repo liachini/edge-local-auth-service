@@ -179,6 +179,58 @@
         .loading { color: #8b949e; font-size: 13px; margin-top: 8px; display: none; }
         .loading.visible { display: block; }
 
+        /* Mode badge */
+        .mode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 12px;
+            border: 1px solid;
+            transition: all 0.4s;
+        }
+        .mode-badge .mode-dot {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+        }
+        .mode-badge.offline {
+            background: #1a1a2e;
+            border-color: #58a6ff;
+            color: #58a6ff;
+        }
+        .mode-badge.offline .mode-dot {
+            background: #58a6ff;
+            box-shadow: 0 0 6px #58a6ff;
+            animation: pulse-blue 2s infinite;
+        }
+        .mode-badge.online {
+            background: #0d2818;
+            border-color: #56d364;
+            color: #56d364;
+        }
+        .mode-badge.online .mode-dot {
+            background: #56d364;
+            box-shadow: 0 0 6px #56d364;
+        }
+        .mode-badge.checking {
+            background: #21262d;
+            border-color: #8b949e;
+            color: #8b949e;
+        }
+        .mode-badge.checking .mode-dot {
+            background: #8b949e;
+            animation: pulse-grey 1s infinite;
+        }
+        @@keyframes pulse-blue {
+            0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+        }
+        @@keyframes pulse-grey {
+            0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+        }
+
         /* JWT claims */
         .claims-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .claims-table th { text-align: left; padding: 6px 10px; color: #8b949e; border-bottom: 1px solid #21262d; font-weight: 500; }
@@ -226,6 +278,11 @@
     <h1>🧪 OAuth2 Test Client</h1>
     <p>Playground per testare i 3 scenari di autenticazione</p>
     <span class="badge">LocalAuthService · @ViewBag.BaseUrl</span>
+    <br/>
+    <span class="mode-badge checking" id="mode-badge">
+        <span class="mode-dot"></span>
+        <span id="mode-label">Verifica modalità...</span>
+    </span>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════ -->
@@ -578,6 +635,25 @@ async function loadClients() {
     }
 }
 loadClients().then(() => initS2RefreshPanel());
+
+// ── Mode badge ────────────────────────────────────────────────
+async function checkMode() {
+    const badge = document.getElementById('mode-badge');
+    const label = document.getElementById('mode-label');
+    try {
+        const res = await fetch(`${BASE_URL}/test/mode`);
+        const data = await res.json();
+        badge.className = 'mode-badge ' + (data.online ? 'online' : 'offline');
+        label.textContent = data.online
+            ? 'ONLINE — Keycloak attivo'
+            : 'OFFLINE — Modalità locale';
+    } catch {
+        badge.className = 'mode-badge checking';
+        label.textContent = 'Impossibile verificare modalità';
+    }
+}
+checkMode();
+setInterval(checkMode, 6000);
 
 async function startScenario2() {
     const clientId = document.getElementById('s2-client').value;

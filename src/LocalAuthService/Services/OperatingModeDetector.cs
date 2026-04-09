@@ -7,7 +7,7 @@ public class OperatingModeDetector
     private readonly HttpClient _http;
     private bool _isOnline = false;
     private DateTime _lastCheckTime = DateTime.MinValue;
-    private const int CheckCacheSeconds = 30; // Cache check result for 30 seconds
+    private const int CheckCacheSeconds = 5;
 
     public bool IsOnline => _isOnline;
     public event Action<bool>? OnModeChanged;

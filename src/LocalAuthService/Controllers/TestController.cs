@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LocalAuthService.Data;
+using LocalAuthService.Services;
 using System.Collections.Concurrent;
 
 namespace LocalAuthService.Controllers;
@@ -8,13 +9,22 @@ namespace LocalAuthService.Controllers;
 public class TestController : Controller
 {
     private readonly AuthDbContext _db;
+    private readonly OperatingModeDetector _modeDetector;
 
     // Cache in-memory per le credenziali client (TTL implicito: una sola uso)
     private static readonly ConcurrentDictionary<string, (string ClientId, string Secret)> _clientStateCache = new();
 
-    public TestController(AuthDbContext db)
+    public TestController(AuthDbContext db, OperatingModeDetector modeDetector)
     {
         _db = db;
+        _modeDetector = modeDetector;
+    }
+
+    [HttpGet("~/test/mode")]
+    public async Task<IActionResult> Mode()
+    {
+        var isOnline = await _modeDetector.CheckAsync();
+        return Ok(new { online = isOnline, mode = isOnline ? "ONLINE" : "OFFLINE" });
     }
 
     [HttpPost("~/test/save-client-state")]

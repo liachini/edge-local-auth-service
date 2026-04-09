@@ -447,7 +447,7 @@ dotnet run
 
 ---
 
-## 1.2 🔴 Database Encryption (SQLCipher)
+## 1.2 ⛔ Database Encryption (SQLCipher) — BLOCKED
 
 **Current Problem:** Database file completely unencrypted  
 **Solution:** SQLCipher (AES-256 database-level encryption)  
@@ -548,11 +548,11 @@ sqlite3 auth.db "SELECT * FROM Users;"
 # Open test UI: All scenarios work
 ```
 
-**Status:** ✅ Complete (CVSS 9.8 → 6.5)
+**Status:** ⛔ BLOCKED — `SQLitePCLRaw.bundle_e_sqlcipher` non include binari nativi per Windows/.NET 10 nel feed NuGet disponibile. Il provider `e_sqlite3` rimane attivo. Vulnerabilità invariata (CVSS 9.8). Alternativa: `System.Data.SQLite` con cifratura nativa Windows, oppure NuGet feed con binari SQLCipher compilati.
 
 ---
 
-## 1.3 🟠 Secrets Management (Move Out of Code)
+## 1.3 ✅ Secrets Management (Move Out of Code)
 
 **Current Problem:** 7 client secrets hardcoded in Program.cs  
 **Solution:** Configuration + User Secrets + Environment Variables  
@@ -746,6 +746,21 @@ dotnet run
 ```
 
 **Status:** ✅ Complete (CVSS 8.1 → 3.5)
+
+> **⚠️ Nota:** I segreti di sviluppo sono attualmente in `appsettings.Development.json` (gitignored).
+> È accettabile, ma per maggiore sicurezza è preferibile spostarli in **User Secrets**
+> (fuori dalla cartella di progetto, in `%APPDATA%\Microsoft\UserSecrets\`):
+>
+> ```bash
+> dotnet user-secrets set "Clients:MesFornitore:Secret" "mes-secret-123" --project src/LocalAuthService
+> dotnet user-secrets set "Clients:OfficeApi:Secret" "office-secret-456" --project src/LocalAuthService
+> dotnet user-secrets set "Clients:CliSimulator:Secret" "cli-simulator-secret-789" --project src/LocalAuthService
+> dotnet user-secrets set "Clients:LegacyCredentialsManager:Secret" "legacy-manager-secret-456" --project src/LocalAuthService
+> dotnet user-secrets set "Clients:ErpSimulator:Secret" "erp-simulator-secret-789" --project src/LocalAuthService
+> dotnet user-secrets set "Clients:CrmSimulator:Secret" "crm-simulator-secret-789" --project src/LocalAuthService
+> dotnet user-secrets set "Clients:UnauthorizedTest:Secret" "unauthorized-test-secret" --project src/LocalAuthService
+> ```
+> Poi rimuovere i valori da `appsettings.Development.json` (lasciare solo `CHANGE_ME` come placeholder).
 
 ---
 

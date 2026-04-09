@@ -4,7 +4,9 @@ namespace LocalAuthService.Tests;
 /// Security Fix 1.2: Database must be encrypted with SQLCipher (AES-256).
 /// An attacker who copies auth.db must NOT be able to read it without the key.
 ///
-/// STATUS: ❌ RED — SQLCipher not yet implemented (Phase 1.2 pending)
+/// STATUS: ❌ BLOCKED — SQLCipher non installabile in questo ambiente.
+/// SQLitePCLRaw.bundle_e_sqlcipher 2.x non include i binari nativi per Windows/.NET 10.
+/// Soluzione: usare un NuGet feed con i binari nativi compilati, oppure System.Data.SQLite.
 /// These tests will turn GREEN when SQLCipher is added.
 /// </summary>
 public class DatabaseEncryptionTests
@@ -14,7 +16,7 @@ public class DatabaseEncryptionTests
         "LocalAuthService",
         "auth.db");
 
-    [Fact(Skip = "Phase 1.2 not implemented — will be GREEN after SQLCipher integration")]
+    [Fact(Skip = "Phase 1.2 blocked — SQLitePCLRaw.bundle_sqlcipher incompatible with .NET 10")]
     public void DatabaseFile_CannotBeOpenedWithPlainSqlite()
     {
         // After SQLCipher: opening auth.db without password must fail
@@ -50,7 +52,7 @@ public class DatabaseEncryptionTests
         cmd.CommandText = "SELECT COUNT(*) FROM Users";
         var count = cmd.ExecuteScalar();
 
-        // Currently succeeds — DB is NOT encrypted (known vulnerability, Phase 1.2)
+        // Currently succeeds — DB is NOT encrypted (known vulnerability, Phase 1.2 blocked)
         Assert.NotNull(count);
     }
 }
