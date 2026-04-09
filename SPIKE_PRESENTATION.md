@@ -268,7 +268,166 @@ Molti sistemi usano ancora credenziali username/password tradizionali e non supp
 
 ---
 
-## 7. Roadmap Sicurezza (Post-Spike)
+## 7. Scalabilita' Multi-Macchina
+
+Quando un cliente ha **piu' macchine** che devono condividere utenti, ruoli e client OAuth, ci sono diverse strategie a seconda dell'infrastruttura disponibile.
+
+---
+
+### Scenario 1: Multi-macchina con Keycloak (hub centrale)
+
+La soluzione piu' completa. Keycloak fa da **hub centralizzato** e ogni macchina sincronizza con esso.
+
+```
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    INFRASTRUTTURA CLIENTE                   │
+  │                                                             │
+  │   Macchina 1 ──┐                                            │
+  │   Macchina 2 ──┤         ┌───────────────────────┐          │
+  │   Macchina 3 ──┼── sync ─┤    KEYCLOAK           │          │
+  │   Macchina 4 ──┤         │    (hub centrale)     │          │
+  │   Macchina 5 ──┘         │                       │          │
+  │                          │  - Single Sign-On     │          │
+  │   Ogni macchina ha:      │  - Audit centralizzato│          │
+  │   - LocalAuthService     │  - Federation LDAP/AD │          │
+  │   - DB SQLite locale     │  - UI di gestione     │          │
+  │   - JWKS + Vault Key     └───────────────────────┘          │
+  │   - Funziona anche                                          │
+  │     se Keycloak e'                                          │
+  │     irraggiungibile                                         │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+**Flusso di sincronizzazione:**
+
+```
+  Macchina 1 crea utente "mario"
+       │
+       ▼
+  Sync Local → Keycloak (automatico)
+       │
+       ▼
+  Keycloak ha "mario"
+       │
+       ▼
+  Macchina 2..5: Sync Keycloak → Local (automatico)
+       │
+       ▼
+  Tutte le macchine hanno "mario"
+```
+
+**Stato implementazione:** Completo — il `SyncBackgroundService` gestisce tutto automaticamente.
+
+---
+
+### Scenario 2: Multi-macchina SENZA Keycloak — Leader dinamico con fallback
+
+Per clienti che **non hanno Keycloak** e **non hanno un server dedicato**. Le macchine si organizzano autonomamente: una diventa leader, le altre sincronizzano con lei. Se il leader si spegne, un'altra macchina prende il ruolo.
+
+```
+  SITUAZIONE INIZIALE                    IL LEADER SI SPEGNE
+
+  ┌─────────────────────────┐           ┌─────────────────────────┐
+  │   RETE LOCALE FABBRICA  │           │   RETE LOCALE FABBRICA  │
+  │                         │           │                         │
+  │   Macchina 1 - LEADER   │           │   Macchina 1  (spenta)  │
+  │     ▲    ▲              │           │                         │
+  │     │    │              │           │   Macchina 2 - LEADER   │
+  │     ▼    ▼              │           │     ▲                   │
+  │   Macch.2  Macch.3      │           │     ▼                   │
+  │   (sync)   (sync)       │           │   Macchina 3            │
+  │                         │           │   (sync)                │
+  └─────────────────────────┘           └─────────────────────────┘
+
+  ╳ NESSUN KEYCLOAK ╳                  Il leader e' caduto:
+  ╳ NESSUN SERVER DEDICATO ╳           Macchina 2 diventa leader
+                                        automaticamente
+```
+
+**Come funziona:**
+
+```
+  Avvio macchina
+       │
+       ▼
+  Cerca altre macchine nella rete
+  (broadcast/multicast o lista configurata)
+       │
+       ├─── Nessuno risponde ──► Divento LEADER
+       │
+       └─── Trovo un leader ──► Sincronizzo con lui
+                                     │
+                                     ▼
+                              Polling periodico
+                                     │
+                              Leader non risponde?
+                                     │
+                                     ▼
+                              Elezione nuovo leader
+                              (priorita' per uptime
+                               o ID macchina)
+```
+
+**Regole di elezione:**
+1. Ogni macchina ha un **ID univoco** e un **peso** (configurabile, es. priorita' statica o uptime)
+2. All'avvio, ogni macchina cerca i peer nella rete locale
+3. Se nessuno risponde, si autoproclama leader
+4. Se trova un leader attivo, sincronizza con lui
+5. Se il leader non risponde per N secondi, le macchine rimaste **eleggono il nuovo leader** (quella con peso piu' alto)
+6. Quando il vecchio leader torna online, sincronizza con il nuovo leader (non reclama il ruolo)
+
+**Gestione conflitti:**
+- Il leader e' la **fonte di verita'** — in caso di conflitto, i suoi dati vincono
+- Ogni modifica ha un **timestamp** (`UpdatedAt`) — in caso di merge, vince la modifica piu' recente
+- Utenti creati offline su macchine diverse vengono uniti per username
+
+**Stato implementazione:** Da sviluppare. Richiede:
+- Servizio di **peer discovery** (broadcast UDP o lista statica di IP)
+- Logica di **leader election** (basata su priorita'/uptime)
+- Adapter di **sync peer-to-peer** (riutilizza la logica di sync esistente)
+- **Conflict resolution** basata su timestamp
+
+---
+
+### Scenario 3: Macchina singola — Nessuna sync
+
+Lo scenario piu' semplice: una sola macchina, nessuna necessita' di sincronizzazione.
+
+```
+  ┌────────────────────────────────────────┐
+  │              MACCHINA                  │
+  │                                        │
+  │   LocalAuthService                     │
+  │   - DB SQLite locale                   │
+  │   - JWKS + Vault Key                   │
+  │   - Completamente autonomo             │
+  │                                        │
+  │   ╳ NESSUNA RETE ╳                     │
+  │   ╳ NESSUN HUB ╳                       │
+  │   ╳ NESSUN KEYCLOAK ╳                  │
+  └────────────────────────────────────────┘
+```
+
+**Stato implementazione:** Completo — e' lo scenario base gia' funzionante.
+
+---
+
+### Confronto scenari
+
+| | Keycloak Hub | Leader Dinamico | Singola Macchina |
+|---|---|---|---|
+| **Infrastruttura richiesta** | Server Keycloak (Java) | Nessuna (solo rete locale) | Nessuna |
+| **Server dedicato** | Si' | No | No |
+| **Gestione centralizzata** | Si' (Keycloak Admin) | Si' (leader corrente) | Locale |
+| **Offline resilience** | Si' (ogni macchina autonoma) | Si' (ogni macchina autonoma) | Si' (nativa) |
+| **Tolleranza a macchine spente** | Si' (Keycloak resta attivo) | Si' (elezione nuovo leader) | N/A |
+| **UI gestione utenti** | Keycloak Admin Console | Da sviluppare | Da sviluppare |
+| **Complessita' operativa** | Media-Alta | Bassa | Nessuna |
+| **Complessita' sviluppo** | Gia' scritto | Media (discovery + election) | Gia' scritto |
+
+---
+
+## 8. Roadmap Sicurezza (Post-Spike)
 
 Queste sono le azioni pianificate per portare il servizio in produzione:
 
@@ -292,7 +451,7 @@ Queste sono le azioni pianificate per portare il servizio in produzione:
 
 ---
 
-## 8. Stack Tecnologico
+## 9. Stack Tecnologico
 
 | Componente | Tecnologia |
 |---|---|
