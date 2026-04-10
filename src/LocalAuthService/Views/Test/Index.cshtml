@@ -606,17 +606,29 @@
 <script>
 const BASE_URL = '@ViewBag.BaseUrl';
 
-// ── Carica client disponibili ─────────────────────────────────
+// ── Carica client disponibili + secret ───────────────────────
+let clientSecrets = {};
+
 async function loadClients() {
     try {
-        const res = await fetch(`${BASE_URL}/api/clients`);
+        const [clientsRes, secretsRes] = await Promise.all([
+            fetch(`${BASE_URL}/api/clients`),
+            fetch(`${BASE_URL}/test/client-secrets`)
+        ]);
+
         let clients;
         try {
-            clients = await res.json();
+            clients = await clientsRes.json();
         } catch(e) {
-            const text = await res.text();
+            const text = await clientsRes.text();
             console.error('Errore parsing API /clients response:', text);
             return;
+        }
+
+        try {
+            clientSecrets = await secretsRes.json();
+        } catch(e) {
+            console.warn('Failed to load client secrets', e);
         }
 
         const fill = (id, grantType) => {
@@ -630,6 +642,18 @@ async function loadClients() {
         fill('s1-client', 'password');
         fill('s2-client', 'authorization_code');
         fill('s3-client', 'client_credentials');
+
+        // Auto-popola i secret quando cambia la selezione
+        const autoFillSecret = (selectId, secretInputId) => {
+            const sel = document.getElementById(selectId);
+            const input = document.getElementById(secretInputId);
+            const update = () => { input.value = clientSecrets[sel.value] ?? ''; };
+            sel.addEventListener('change', update);
+            update();
+        };
+        autoFillSecret('s2-client', 's2-secret');
+        autoFillSecret('s3-client', 's3-secret');
+
     } catch (e) {
         console.warn('Failed to load clients', e);
     }

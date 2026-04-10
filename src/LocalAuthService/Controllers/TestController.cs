@@ -10,14 +10,16 @@ public class TestController : Controller
 {
     private readonly AuthDbContext _db;
     private readonly OperatingModeDetector _modeDetector;
+    private readonly IConfiguration _config;
 
     // Cache in-memory per le credenziali client (TTL implicito: una sola uso)
     private static readonly ConcurrentDictionary<string, (string ClientId, string Secret)> _clientStateCache = new();
 
-    public TestController(AuthDbContext db, OperatingModeDetector modeDetector)
+    public TestController(AuthDbContext db, OperatingModeDetector modeDetector, IConfiguration config)
     {
         _db = db;
         _modeDetector = modeDetector;
+        _config = config;
     }
 
     [HttpGet("~/test/mode")]
@@ -36,6 +38,22 @@ public class TestController : Controller
     }
 
     public record SaveClientStateRequest(string ClientId, string? Secret);
+
+    [HttpGet("~/test/client-secrets")]
+    public IActionResult ClientSecrets()
+    {
+        var secrets = new Dictionary<string, string>
+        {
+            ["mes-fornitore"]             = _config["Clients:MesFornitore:Secret"] ?? "",
+            ["office-api"]                = _config["Clients:OfficeApi:Secret"] ?? "",
+            ["cli-simulator"]             = _config["Clients:CliSimulator:Secret"] ?? "",
+            ["legacy-credentials-manager"]= _config["Clients:LegacyCredentialsManager:Secret"] ?? "",
+            ["erp-simulator"]             = _config["Clients:ErpSimulator:Secret"] ?? "",
+            ["crm-simulator"]             = _config["Clients:CrmSimulator:Secret"] ?? "",
+            ["unauthorized-test"]         = _config["Clients:UnauthorizedTest:Secret"] ?? "",
+        };
+        return Ok(secrets);
+    }
 
     [HttpGet("~/test")]
     public IActionResult Index()

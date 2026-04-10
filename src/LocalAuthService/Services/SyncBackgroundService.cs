@@ -22,6 +22,7 @@ public class SyncBackgroundService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var intervalMinutes = _config.GetValue<int>("Keycloak:SyncIntervalMinutes", 15);
+        var offlineRetrySeconds = _config.GetValue<int>("Keycloak:OfflineRetrySeconds", 10);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -45,13 +46,14 @@ public class SyncBackgroundService : BackgroundService
                 {
                     _logger.LogError(ex, "Sync failed: {Message}", ex.Message);
                 }
+
+                await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
             }
             else
             {
-                _logger.LogInformation("Keycloak OFFLINE — sync skipped");
+                _logger.LogInformation("Keycloak OFFLINE — retry in {Seconds}s", offlineRetrySeconds);
+                await Task.Delay(TimeSpan.FromSeconds(offlineRetrySeconds), stoppingToken);
             }
-
-            await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
         }
     }
 }

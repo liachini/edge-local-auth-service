@@ -18,12 +18,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Database SQLite
-var dataDir = builder.Configuration["DataDirectory"]
+var dataDir = Environment.ExpandEnvironmentVariables(
+    builder.Configuration["DataDirectory"]
     ?? Environment.GetEnvironmentVariable("DataDirectory")
     ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LocalAuthService"
-    );
+    ));
 var dbPath = Path.Combine(dataDir, "auth.db");
 
 // Assicura che la directory esista
@@ -129,66 +130,112 @@ using (var scope = app.Services.CreateScope())
     var seedSampleData = app.Configuration.GetValue<bool>("SeedSampleData", true);
     if (seedSampleData && !db.Users.Any())
     {
-        Console.WriteLine("🌱 Seeding initial data...");
-        
-        // Admin user
-        db.Users.Add(new User
-        {
-            Username = "admin",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
-            HasLocalPassword = true,
-            Email = "admin@local.dev",
-            FirstName = "Admin",
-            LastName = "Local",
-            EmailVerified = true,
-            Enabled = true,
-            Roles = "[\"admin\"]",
-            CreatedLocally = true
-        });
-        
-        // Test user (operatore)
-        db.Users.Add(new User
-        {
-            Username = "operator1",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oper123"),
-            HasLocalPassword = true,
-            Email = "operator1@local.dev",
-            FirstName = "Mario",
-            LastName = "Rossi",
-            EmailVerified = true,
-            Enabled = true,
-            Roles = "[\"operator\"]",
-            CreatedLocally = true
-        });
-        
-        // Test client (HMI)
+        Console.WriteLine("🌱 Seeding Falegnameria Verdi S.r.l. — realm: falegnameria-verdi");
+
+        // ── Utenti ──────────────────────────────────────────────────────────
+        db.Users.AddRange(
+            // Amministratore di sistema
+            new User
+            {
+                Username = "admin",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
+                HasLocalPassword = true,
+                Email = "admin@falegnameria-verdi.it",
+                FirstName = "Admin",
+                LastName = "Sistema",
+                EmailVerified = true,
+                Enabled = true,
+                Roles = "[\"admin\"]",
+                CreatedLocally = true
+            },
+            // Capomastro
+            new User
+            {
+                Username = "marco.bianchi",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Marco2024!"),
+                HasLocalPassword = true,
+                Email = "marco.bianchi@falegnameria-verdi.it",
+                FirstName = "Marco",
+                LastName = "Bianchi",
+                EmailVerified = true,
+                Enabled = true,
+                Roles = "[\"supervisor\",\"operator\"]",
+                CreatedLocally = true
+            },
+            // Operatore CNC
+            new User
+            {
+                Username = "luigi.ferrari",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Luigi2024!"),
+                HasLocalPassword = true,
+                Email = "luigi.ferrari@falegnameria-verdi.it",
+                FirstName = "Luigi",
+                LastName = "Ferrari",
+                EmailVerified = true,
+                Enabled = true,
+                Roles = "[\"operator\"]",
+                CreatedLocally = true
+            },
+            // Operatore verniciatura
+            new User
+            {
+                Username = "giuseppe.conti",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Giuseppe2024!"),
+                HasLocalPassword = true,
+                Email = "giuseppe.conti@falegnameria-verdi.it",
+                FirstName = "Giuseppe",
+                LastName = "Conti",
+                EmailVerified = true,
+                Enabled = true,
+                Roles = "[\"operator\"]",
+                CreatedLocally = true
+            },
+            // Responsabile magazzino
+            new User
+            {
+                Username = "anna.ricci",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Anna2024!"),
+                HasLocalPassword = true,
+                Email = "anna.ricci@falegnameria-verdi.it",
+                FirstName = "Anna",
+                LastName = "Ricci",
+                EmailVerified = true,
+                Enabled = true,
+                Roles = "[\"warehouse-manager\"]",
+                CreatedLocally = true
+            }
+        );
+
+        // ── Client (tabella OAuthClients — metadati, non OpenIddict) ────────
         db.Clients.Add(new OAuthClient
         {
             ClientId = "hmi-local",
-            ClientName = "HMI Local Client",
-            IsConfidential = false, // Public client
+            ClientName = "HMI Macchina CNC1",
+            IsConfidential = false,
             ServiceAccountEnabled = false,
             AllowedScopes = "[\"openid\",\"profile\",\"email\"]"
         });
-        
-        // Machine config
+
+        // ── MachineConfig ────────────────────────────────────────────────────
         db.MachineConfigs.Add(new MachineConfig
         {
             MachineId = Environment.MachineName,
-            LocalRealmName = "local",
+            LocalRealmName = "falegnameria-verdi",
             KeycloakSyncEnabled = false
         });
-        
+
         db.SaveChanges();
-        Console.WriteLine("✅ Seed data created!");
-        Console.WriteLine("   Users: admin/admin123, operator1/oper123");
+        Console.WriteLine("✅ Seed completato — Falegnameria Verdi S.r.l.");
+        Console.WriteLine("   admin          / admin123");
+        Console.WriteLine("   marco.bianchi  / Marco2024!    (supervisor, operator)");
+        Console.WriteLine("   luigi.ferrari  / Luigi2024!    (operator)");
+        Console.WriteLine("   giuseppe.conti / Giuseppe2024! (operator)");
+        Console.WriteLine("   anna.ricci     / Anna2024!     (warehouse-manager)");
     }
 
     // Registra client OAuth in OpenIddict
     var clientManager = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>();
 
-    if (seedSampleData)
-    {
     if (await clientManager.FindByClientIdAsync("hmi-local") == null)
     {
         Console.WriteLine("🔧 Registering OAuth clients in OpenIddict...");
@@ -375,11 +422,6 @@ using (var scope = app.Services.CreateScope())
         });
 
         Console.WriteLine("✅ OAuth client 'unauthorized-test' registered (NO legacy roles for testing)");
-    }
-    }
-    else
-    {
-        Console.WriteLine("⏭️ SeedSampleData=false — skipping sample users and OAuth clients");
     }
 
     // Aggiunge /test/callback a mes-fornitore (se mancante)
